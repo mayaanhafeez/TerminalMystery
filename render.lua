@@ -298,24 +298,29 @@ local function draw_minimap(state, mx, my, mw, mh)
 	love.graphics.setLineWidth(1)
 	love.graphics.rectangle("line", mx, my, mw, mh, 4, 4)
 
-	-- connections
+	-- connections (skip any edge that touches a hidden room)
 	love.graphics.setColor(C.connection)
 	love.graphics.setLineWidth(1)
 	local drawn = {}
-	for id, _ in pairs(World.rooms) do
-		for _, exit_id in ipairs(World.get_exits(id)) do
-			local key = (id < exit_id) and (id .. "|" .. exit_id) or (exit_id .. "|" .. id)
-			if not drawn[key] then
-				drawn[key] = true
-				local x1, y1, w1, h1 = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
-				local x2, y2, w2, h2 = minimap_room_rect(layout_cache[exit_id], mx, my, cell_w, cell_h, room_pad)
-				love.graphics.line(x1 + w1 / 2, y1 + h1 / 2, x2 + w2 / 2, y2 + h2 / 2)
+	for id, room in pairs(World.rooms) do
+		if not room.hidden then
+			for _, exit_id in ipairs(World.get_exits(id)) do
+				if not World.rooms[exit_id].hidden then
+					local key = (id < exit_id) and (id .. "|" .. exit_id) or (exit_id .. "|" .. id)
+					if not drawn[key] then
+						drawn[key] = true
+						local x1, y1, w1, h1 = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
+						local x2, y2, w2, h2 = minimap_room_rect(layout_cache[exit_id], mx, my, cell_w, cell_h, room_pad)
+						love.graphics.line(x1 + w1 / 2, y1 + h1 / 2, x2 + w2 / 2, y2 + h2 / 2)
+					end
+				end
 			end
 		end
 	end
 
-	-- room cells
+	-- room cells (skip hidden rooms)
 	for id, room in pairs(World.rooms) do
+		if room.hidden then goto continue end
 		local x, y, w, h = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
 		local is_current = (state.current_room == id)
 		local is_visited = state.visited[id] == true
@@ -348,6 +353,7 @@ local function draw_minimap(state, mx, my, mw, mh)
 		end
 		local lw = M.font_small:getWidth(label)
 		love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_small:getHeight()) / 2)
+		::continue::
 	end
 end
 

@@ -410,17 +410,21 @@ function M.get_exits(room_id)
 end
 
 -- Returns a list of non-removed items that belong to the given room_id.
-function M.get_items_in_room(room_id)
+-- include_hidden defaults to false; pass true for ls -a behaviour.
+function M.get_items_in_room(room_id, include_hidden)
 	local result = {}
 	for _, item in ipairs(M.items) do
 		if item.room == room_id and not item.removed then
-			table.insert(result, item)
+			if include_hidden or not item.hidden then
+				table.insert(result, item)
+			end
 		end
 	end
 	return result
 end
 
 -- Returns a single non-removed item matching room_id + filename, or nil.
+-- Hidden items are returned when explicitly named (caller knows the filename).
 function M.get_item(room_id, filename)
 	for _, item in ipairs(M.items) do
 		if item.room == room_id and item.filename == filename and not item.removed then
