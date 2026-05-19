@@ -148,20 +148,15 @@ function love.keypressed(key)
         if key == "escape" then state.popup_item = nil end
         return
     end
-    -- win screen: only R / Esc
+    -- win screen: only R
     if state.won then
-        if key == "escape" then
-            love.event.quit()
-        elseif key == "r" then
+        if key == "r" then
             init_game()
         end
         return
     end
 
-    if key == "escape" then
-        love.event.quit()
-
-    elseif key == "return" or key == "kpenter" then
+    if key == "return" or key == "kpenter" then
         execute_input()
 
     elseif key == "backspace" then

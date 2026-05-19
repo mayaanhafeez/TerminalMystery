@@ -53,23 +53,41 @@ local function locked_message(cmd)
     return "That ability is not yet available to you."
 end
 
+-- ---------- helpers ----------
+
+local function room_path(room_id)
+    local parts = {}
+    local id = room_id
+    while id do
+        local room = World.rooms[id]
+        table.insert(parts, 1, room.id)
+        id = room.parent
+    end
+    -- replace the root segment ("foyer") with "~"
+    parts[1] = "~"
+    if #parts == 1 then return "~" end
+    return table.concat(parts, "/")
+end
+
 -- ---------- handlers ----------
 
 function handlers.help(state, _)
     local lines = {
         "Available commands:",
         "  ls                       list the contents of this room",
+        "  pwd                      print current room path",
+        "  cwd                      print previous room path",
         "  cd <room>                move to an adjacent room",
-        "  cd                       show the exits from this room",
+        "  cd .. / cd ~             go up to the Foyer (root / home)",
+        "  cd ../<room>             go up then into a room (e.g. cd ../study)",
+        "  cd -                     return to the previous room",
+        "  cd                       return to the Foyer",
         "  echo <text>              repeat text back",
+        "  exit                     quit the game",
         "  help                     show this list",
         "  accuse <name>            name the murderer",
     }
-    if state.unlocked.cat then
-        table.insert(lines, "  cat <file>               read a piece of evidence")
-    else
-        table.insert(lines, "  cat <file>               (not yet — investigate first)")
-    end
+    table.insert(lines, "  cat <file>               read a piece of evidence")
     if state.unlocked.grep then
         table.insert(lines,
             "  grep <pattern> <file>    search one file for a pattern")
@@ -90,7 +108,7 @@ function handlers.ls(state, _)
     local out = {}
     table.insert(out, "-- " .. room.name .. " --")
     table.insert(out, "Exits:")
-    for _, exit in ipairs(room.exits) do
+    for _, exit in ipairs(World.get_exits(state.current_room)) do
         table.insert(out, "  " .. World.rooms[exit].name)
     end
     table.insert(out, "Evidence:")
@@ -112,56 +130,137 @@ function handlers.ls(state, _)
 end
 
 function handlers.cd(state, args)
-    local room = World.rooms[state.current_room]
+    -- Strip -L / -P / -e flags: no symlinks in the mansion, all are no-ops.
+    local filtered = {}
+    for _, a in ipairs(args) do
+        if a ~= "-L" and a ~= "-P" and a ~= "-e" then
+            table.insert(filtered, a)
+        end
+    end
+    args = filtered
+
+    -- Derive root once: the room with no parent.
+    local root_id = "foyer"
+    for id, r in pairs(World.rooms) do
+        if not r.parent then root_id = id; break end
+    end
+
+    -- cd with no args (or flags only): go to root (~)
     if #args == 0 then
-        local out = { "Exits from " .. room.name .. ":" }
-        for _, exit in ipairs(room.exits) do
-            table.insert(out, "  " .. World.rooms[exit].name)
+        if state.current_room == root_id then
+            return "You are already in the " .. World.rooms[root_id].name .. "."
         end
-        return table.concat(out, "\n")
-    end
-
-    -- allow "cd .." as a convenience: return to the previous room
-    if args[1] == ".." then
-        if state.previous_room == state.current_room then
-            return "You are already where you began."
-        end
-        local prev = state.previous_room
         state.previous_room = state.current_room
-        state.current_room  = prev
-        state.visited[prev] = true
+        state.current_room  = root_id
+        state.visited[root_id] = true
         World.check_unlocks(state)
-        return World.rooms[prev].description
+        return World.rooms[root_id].description
     end
 
-    local target_input = table.concat(args, " "):lower()
-    local target_id
-
-    -- adjacent rooms only
-    for _, exit in ipairs(room.exits) do
-        local r = World.rooms[exit]
-        if r.id == target_input or r.name:lower() == target_input then
-            target_id = exit
-            break
-        end
+    local function get_parent(room_id)
+        return World.rooms[room_id].parent or room_id  -- stay put at root
     end
 
-    if not target_id then
-        -- helpful message if the player named a real room that isn't adjacent
-        for id, r in pairs(World.rooms) do
-            if id == target_input or r.name:lower() == target_input then
-                return "There is no direct path to the " .. r.name
-                    .. " from here.\nReturn through the Foyer first."
+    local function find_adjacent(from_id, name)
+        local name_lower = name:lower()
+        for _, exit in ipairs(World.get_exits(from_id)) do
+            local r = World.rooms[exit]
+            if r.id == name_lower or r.name:lower() == name_lower then
+                return exit
             end
         end
-        return "There is no such place in the mansion. Try `cd` for the exits."
+        return nil
     end
 
+    -- Split path on "/" and trim each component.
+    local path = table.concat(args, " ")
+    local components = {}
+    for part in path:gmatch("[^/]+") do
+        local trimmed = part:match("^%s*(.-)%s*$")
+        if trimmed ~= "" then
+            table.insert(components, trimmed)
+        end
+    end
+
+    -- Walk components left-to-right from current room.
+    -- .  → stay   ..  → parent (Foyer)   ~ → Foyer   name → adjacent room
+    local cursor = state.current_room
+    local traversed = {}
+
+    for _, comp in ipairs(components) do
+        if comp == "." then
+            -- stay put; no-op like in bash
+        elseif comp == "-" then
+            -- cd - swaps to previous room, like bash
+            local prev = state.previous_room
+            if prev == state.current_room then
+                return "You have not moved yet."
+            end
+            state.previous_room = state.current_room
+            state.current_room  = prev
+            state.visited[prev] = true
+            World.check_unlocks(state)
+            return room_path(prev) .. "\n" .. World.rooms[prev].description
+        elseif comp == ".." then
+            local parent = get_parent(cursor)
+            if parent ~= cursor then
+                cursor = parent
+                table.insert(traversed, cursor)
+            end
+            -- silently stay at root when already there, matching bash at /
+        elseif comp == "~" then
+            if cursor ~= root_id then
+                cursor = root_id
+                table.insert(traversed, cursor)
+            end
+        else
+            local next_id = find_adjacent(cursor, comp)
+            if not next_id then
+                local comp_lower = comp:lower()
+                for id, r in pairs(World.rooms) do
+                    if id == comp_lower or r.name:lower() == comp_lower then
+                        return "There is no direct path to the " .. r.name
+                            .. " from the " .. World.rooms[cursor].name .. "."
+                    end
+                end
+                return "There is no such place as \"" .. comp
+                    .. "\" in the mansion. Try `ls` for exits."
+            end
+            cursor = next_id
+            table.insert(traversed, cursor)
+        end
+    end
+
+    if cursor == state.current_room then
+        return "You are already here."
+    end
+
+    for _, room_id in ipairs(traversed) do
+        state.visited[room_id] = true
+    end
     state.previous_room = state.current_room
-    state.current_room  = target_id
-    state.visited[target_id] = true
+    state.current_room  = cursor
     World.check_unlocks(state)
-    return World.rooms[target_id].description
+    return World.rooms[cursor].description
+end
+
+function handlers.pwd(state, _)
+    return room_path(state.current_room)
+        .. "  (" .. World.rooms[state.current_room].name .. ")"
+end
+
+function handlers.cwd(state, _)
+    local prev = state.previous_room
+    if prev == state.current_room then
+        return "(no previous room — you have not moved yet)"
+    end
+    return room_path(prev)
+        .. "  (" .. World.rooms[prev].name .. ")"
+end
+
+function handlers.exit(_, _)
+    love.event.quit()
+    return ""
 end
 
 function handlers.echo(_, args)
