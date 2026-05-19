@@ -138,11 +138,16 @@ local function execute_input()
 end
 
 function love.textinput(t)
+    if state.popup_item then return end
     if state.won then return end
     term.input = term.input .. t
 end
 
 function love.keypressed(key)
+    if state.popup_item then
+        if key == "escape" then state.popup_item = nil end
+        return
+    end
     -- win screen: only R / Esc
     if state.won then
         if key == "escape" then
@@ -197,5 +202,14 @@ function love.keypressed(key)
 
     elseif key == "end" then
         term.scroll = 0
+    end
+end
+
+function love.mousepressed(x, y, button)
+    if button == 1 and state.popup_item and Render.popup_close_rect then
+        local r = Render.popup_close_rect
+        if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
+            state.popup_item = nil
+        end
     end
 end

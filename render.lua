@@ -1,5 +1,5 @@
 -- render.lua
--- All drawing. Two panels (terminal left, map right) + status bar + win overlay.
+-- All drawing. Two panels (terminal left, room-view right) + status bar + win overlay.
 
 local World = require("world")
 
@@ -38,22 +38,69 @@ local C = {
     win_title       = {0.95, 0.85, 0.45},
     win_text        = {0.90, 0.95, 0.90},
     win_record      = {0.95, 0.50, 0.50},
+    -- Room background wall colours (outer border)
+    room_wall = {
+        foyer        = {0.34, 0.30, 0.22},  -- aged oak / stone
+        library      = {0.12, 0.16, 0.10},  -- dark forest green
+        study        = {0.16, 0.14, 0.18},  -- deep charcoal / plum
+        conservatory = {0.12, 0.22, 0.20},  -- dark teal
+        cellar       = {0.09, 0.08, 0.09},  -- near-black stone
+    },
+    -- Floor colour (inset, lighter contrast for items)
+    room_floor = {
+        foyer        = {0.72, 0.66, 0.50},  -- warm cream marble
+        library      = {0.28, 0.22, 0.14},  -- rich mahogany
+        study        = {0.36, 0.30, 0.26},  -- warm grey carpet
+        conservatory = {0.46, 0.50, 0.40},  -- mossy stone
+        cellar       = {0.20, 0.18, 0.16},  -- dark rough stone
+    },
+    -- Item glow & label
+    item_box        = {0.90, 0.70, 0.20},
+    item_box_border = {0.70, 0.50, 0.10},
+    item_label      = {1.00, 0.95, 0.70},
 }
 
-M.font     = nil
-M.font_big = nil
+M.font            = nil
+M.font_big        = nil
+M.font_small      = nil  -- used for minimap labels
+M.font_handwriting = nil   -- loaded from handwriting.ttf if present
+M.popup_close_rect = nil   -- set each frame popup is drawn; nil otherwise
+M.sprites    = {}   -- sprite_key -> Image (item icons)
+
+local TILE_PATH = "assets/kenney_tiny-dungeon/Tiles/"
+
+-- sprite key (world.lua item.sprite) -> tile filename
+local SPRITE_MAP = {
+    paper = "tile_0130",
+    book  = "tile_0066",
+    glove = "tile_0116",
+}
+
+local function load_tile(filename)
+    local ok, img = pcall(love.graphics.newImage, TILE_PATH .. filename .. ".png")
+    if ok then img:setFilter("nearest", "nearest") end
+    return ok and img or nil
+end
 
 function M.load()
-    -- Use a bundled font.ttf if the player drops one in; otherwise
-    -- fall back to LÖVE's default proportional font.
     if love.filesystem.getInfo("font.ttf") then
-        M.font     = love.graphics.newFont("font.ttf", 15)
-        M.font_big = love.graphics.newFont("font.ttf", 28)
+        M.font       = love.graphics.newFont("font.ttf", 15)
+        M.font_big   = love.graphics.newFont("font.ttf", 28)
+        M.font_small = love.graphics.newFont("font.ttf", 10)
     else
-        M.font     = love.graphics.newFont(14)
-        M.font_big = love.graphics.newFont(26)
+        M.font       = love.graphics.newFont(14)
+        M.font_big   = love.graphics.newFont(26)
+        M.font_small = love.graphics.newFont(10)
     end
     love.graphics.setFont(M.font)
+
+    if love.filesystem.getInfo("handwriting.ttf") then
+        M.font_handwriting = love.graphics.newFont("handwriting.ttf", 16)
+    end
+
+    for key, tile in pairs(SPRITE_MAP) do
+        M.sprites[key] = load_tile(tile)
+    end
 end
 
 function M.terminal_text_width()
@@ -154,43 +201,30 @@ local function draw_terminal(state, term)
     end
 end
 
-local function room_rect(room, grid_x, grid_top, cell_w, cell_h, room_pad)
-    local cx = grid_x + (room.x - 1) * cell_w
-    local cy = grid_top + (room.y - 1) * cell_h
+-- Compute the screen rect of one minimap room cell given the minimap origin.
+local function minimap_room_rect(room, mx, my, cell_w, cell_h, room_pad)
+    local cx = mx + (room.x - 1) * cell_w
+    local cy = my + (room.y - 1) * cell_h
     return cx + room_pad, cy + room_pad,
            cell_w - 2 * room_pad, cell_h - 2 * room_pad
 end
 
-local function draw_map(state)
+-- Draw the small 3x3 minimap into the rectangle (mx, my, mw, mh).
+local function draw_minimap(state, mx, my, mw, mh)
+    -- background
     love.graphics.setColor(C.map_bg)
-    love.graphics.rectangle("fill", M.MAP_X, 0, M.MAP_W, M.H - M.STATUS_H)
-
+    love.graphics.rectangle("fill", mx, my, mw, mh, 4, 4)
     love.graphics.setColor(C.map_border)
-    love.graphics.setLineWidth(2)
-    love.graphics.line(M.MAP_X, 0, M.MAP_X, M.H - M.STATUS_H)
+    love.graphics.setLineWidth(1)
+    love.graphics.rectangle("line", mx, my, mw, mh, 4, 4)
 
-    -- title
-    love.graphics.setFont(M.font_big)
-    love.graphics.setColor(C.status_text)
-    love.graphics.print("Ashworth Manor", M.MAP_X + M.PAD, M.PAD)
+    local cell_w   = mw / 3
+    local cell_h   = mh / 3
+    local room_pad = 4
 
-    love.graphics.setFont(M.font)
-    love.graphics.setColor(C.term_dim)
-    love.graphics.print("October 14th, 1923",
-        M.MAP_X + M.PAD, M.PAD + M.font_big:getHeight() + 2)
-
-    -- 3x3 grid
-    local grid_top  = M.PAD + M.font_big:getHeight() + M.font:getHeight() + 24
-    local grid_x    = M.MAP_X + M.PAD
-    local grid_w    = M.MAP_W - 2 * M.PAD
-    local grid_h    = M.H - M.STATUS_H - grid_top - M.PAD - 30
-    local cell_w    = grid_w / 3
-    local cell_h    = grid_h / 3
-    local room_pad  = 10
-
-    -- connections behind rooms
+    -- connections
     love.graphics.setColor(C.connection)
-    love.graphics.setLineWidth(3)
+    love.graphics.setLineWidth(1)
     local drawn = {}
     for id, room in pairs(World.rooms) do
         for _, exit_id in ipairs(room.exits) do
@@ -198,10 +232,10 @@ local function draw_map(state)
                         or (exit_id .. "|" .. id)
             if not drawn[key] then
                 drawn[key] = true
-                local x1, y1, w1, h1 = room_rect(room,
-                    grid_x, grid_top, cell_w, cell_h, room_pad)
-                local x2, y2, w2, h2 = room_rect(World.rooms[exit_id],
-                    grid_x, grid_top, cell_w, cell_h, room_pad)
+                local x1, y1, w1, h1 = minimap_room_rect(room,
+                    mx, my, cell_w, cell_h, room_pad)
+                local x2, y2, w2, h2 = minimap_room_rect(World.rooms[exit_id],
+                    mx, my, cell_w, cell_h, room_pad)
                 love.graphics.line(
                     x1 + w1 / 2, y1 + h1 / 2,
                     x2 + w2 / 2, y2 + h2 / 2)
@@ -209,10 +243,10 @@ local function draw_map(state)
         end
     end
 
-    -- rooms
+    -- room cells
     for id, room in pairs(World.rooms) do
-        local x, y, w, h = room_rect(room,
-            grid_x, grid_top, cell_w, cell_h, room_pad)
+        local x, y, w, h = minimap_room_rect(room,
+            mx, my, cell_w, cell_h, room_pad)
         local is_current = (state.current_room == id)
         local is_visited = state.visited[id] == true
 
@@ -226,25 +260,155 @@ local function draw_map(state)
         end
 
         love.graphics.setColor(fill)
-        love.graphics.rectangle("fill", x, y, w, h, 6, 6)
+        love.graphics.rectangle("fill", x, y, w, h, 3, 3)
         love.graphics.setColor(C.map_border)
-        love.graphics.setLineWidth(2)
-        love.graphics.rectangle("line", x, y, w, h, 6, 6)
+        love.graphics.setLineWidth(1)
+        love.graphics.rectangle("line", x, y, w, h, 3, 3)
 
+        love.graphics.setFont(M.font_small)
         love.graphics.setColor(text_color)
+        -- Truncate label with "." until it fits the cell width
         local label = room.name
-        local lw = M.font:getWidth(label)
+        local max_lw = w - 4
+        if M.font_small:getWidth(label) > max_lw then
+            while #label > 1 and M.font_small:getWidth(label .. ".") > max_lw do
+                label = label:sub(1, -2)
+            end
+            label = label .. "."
+        end
+        local lw = M.font_small:getWidth(label)
         love.graphics.print(label,
             x + (w - lw) / 2,
-            y + (h - M.font:getHeight()) / 2)
+            y + (h - M.font_small:getHeight()) / 2)
+    end
+end
+
+-- Draw the main 2D top-down room view in the right panel.
+local function draw_room_view(state)
+    local px = M.MAP_X
+    local py = 0
+    local pw = M.MAP_W
+    local ph = M.H - M.STATUS_H
+
+    local room_id  = state.current_room
+    local room_def = World.rooms[room_id]
+    local wall     = C.room_wall[room_id]  or {0.18, 0.16, 0.20}
+    local floor    = C.room_floor[room_id] or {0.30, 0.28, 0.26}
+
+    -- ---- outer wall fill ----
+    love.graphics.setColor(wall)
+    love.graphics.rectangle("fill", px, py, pw, ph)
+
+    -- dividing line
+    love.graphics.setColor(C.map_border)
+    love.graphics.setLineWidth(2)
+    love.graphics.line(px, py, px, py + ph)
+
+    -- ---- floor interior (inset 24px) ----
+    local BORDER = 24
+    local fx = px + BORDER
+    local fy = py + BORDER
+    local fw = pw - 2 * BORDER
+    local fh = ph - 2 * BORDER
+
+    love.graphics.setColor(floor)
+    love.graphics.rectangle("fill", fx, fy, fw, fh, 3, 3)
+
+    -- Subtle grout grid (very faint lines at 64px intervals)
+    local GRID = 64
+    love.graphics.setColor(wall[1], wall[2], wall[3], 0.18)
+    love.graphics.setLineWidth(1)
+    love.graphics.setScissor(fx, fy, fw, fh)
+    local gx = fx + GRID
+    while gx < fx + fw do
+        love.graphics.line(gx, fy, gx, fy + fh)
+        gx = gx + GRID
+    end
+    local gy = fy + GRID
+    while gy < fy + fh do
+        love.graphics.line(fx, gy, fx + fw, gy)
+        gy = gy + GRID
+    end
+    love.graphics.setScissor()
+
+    -- Inner shadow along top and left edges of floor
+    love.graphics.setColor(0, 0, 0, 0.22)
+    love.graphics.setLineWidth(4)
+    love.graphics.line(fx, fy, fx + fw, fy)
+    love.graphics.line(fx, fy, fx, fy + fh)
+
+    -- ---- room name banner ----
+    local BANNER_H = M.font_big:getHeight() + M.PAD
+    love.graphics.setColor(0, 0, 0, 0.48)
+    love.graphics.rectangle("fill", fx, fy, fw, BANNER_H, 3, 3)
+    -- subtle bottom divider
+    love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(fx + 8, fy + BANNER_H, fx + fw - 8, fy + BANNER_H)
+
+    love.graphics.setFont(M.font_big)
+    love.graphics.setColor(C.status_text)
+    local rname = room_def.name
+    local rnw   = M.font_big:getWidth(rname)
+    love.graphics.print(rname, px + (pw - rnw) / 2,
+        fy + (BANNER_H - M.font_big:getHeight()) / 2)
+
+    -- ---- items ----
+    local ITEM_SCALE = 5           -- 16 → 80px
+    local ITEM_PX    = 16 * ITEM_SCALE
+    local GLOW_R     = 34
+
+    local ITEM_TOP    = fy + BANNER_H + M.PAD
+    local ITEM_BOTTOM = fy + fh - 148
+    local ITEM_LEFT   = fx + M.PAD
+    local ITEM_RIGHT  = fx + fw - M.PAD
+    local item_zone_w = ITEM_RIGHT - ITEM_LEFT
+    local item_zone_h = ITEM_BOTTOM - ITEM_TOP
+
+    love.graphics.setFont(M.font)
+    local items = World.get_items_in_room(room_id)
+    for _, item in ipairs(items) do
+        local cx = ITEM_LEFT + item.x * item_zone_w
+        local cy = ITEM_TOP  + item.y * item_zone_h
+        local ix = cx - ITEM_PX / 2
+        local iy = cy - ITEM_PX / 2
+
+        -- Warm glow (two-pass: soft outer, brighter inner)
+        love.graphics.setColor(0.95, 0.78, 0.25, 0.18)
+        love.graphics.circle("fill", cx, cy, GLOW_R + 16)
+        love.graphics.setColor(0.95, 0.78, 0.25, 0.42)
+        love.graphics.circle("fill", cx, cy, GLOW_R)
+
+        local spr = M.sprites[item.sprite]
+        if spr then
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.draw(spr, ix, iy, 0, ITEM_SCALE, ITEM_SCALE)
+        else
+            love.graphics.setColor(C.item_box)
+            love.graphics.rectangle("fill", ix, iy, ITEM_PX, ITEM_PX, 6, 6)
+            love.graphics.setColor(C.item_box_border)
+            love.graphics.setLineWidth(2)
+            love.graphics.rectangle("line", ix, iy, ITEM_PX, ITEM_PX, 6, 6)
+        end
+
+        -- Label with drop-shadow for readability
+        local label = item.filename:gsub("%.%w+$", "")
+        local lw    = M.font:getWidth(label)
+        local lx    = cx - lw / 2
+        local ly    = iy + ITEM_PX + 4
+        love.graphics.setColor(0, 0, 0, 0.65)
+        love.graphics.print(label, lx + 1, ly + 1)
+        love.graphics.setColor(C.item_label)
+        love.graphics.print(label, lx, ly)
     end
 
-    -- "you are here"
-    love.graphics.setColor(C.status_text)
-    local note = "you are in: " .. World.rooms[state.current_room].name
-    love.graphics.print(note,
-        M.MAP_X + M.PAD,
-        M.H - M.STATUS_H - M.PAD - M.font:getHeight())
+    -- ---- minimap overlay (bottom-right, 160x120, inset 8px) ----
+    local MM_W   = 160
+    local MM_H   = 120
+    local MM_INS = 8
+    local mm_x   = px + pw - MM_W - MM_INS
+    local mm_y   = py + ph - MM_H - MM_INS
+    draw_minimap(state, mm_x, mm_y, MM_W, MM_H)
 end
 
 local function format_time(t)
@@ -319,15 +483,153 @@ local function draw_win_screen(state, best)
     end
 end
 
+local function draw_popup(state)
+    if not state.popup_item then
+        M.popup_close_rect = nil
+        return
+    end
+
+    local item = state.popup_item
+    local is_book = (item.sprite == "book")
+
+    -- Layout constants
+    local DOC_W   = 440
+    local DOC_H   = 580
+    local BTN_W   = 130
+    local BTN_H   = 34
+    local BIND_W  = is_book and 22 or 36
+
+    local doc_x = (M.W - DOC_W) / 2
+    local doc_y = (M.H - DOC_H) / 2
+
+    -- Full-screen semi-transparent overlay
+    love.graphics.setColor(0, 0, 0, 0.75)
+    love.graphics.rectangle("fill", 0, 0, M.W, M.H)
+
+    -- Drop shadow
+    love.graphics.setColor(0, 0, 0, 0.45)
+    love.graphics.rectangle("fill", doc_x + 6, doc_y + 6, DOC_W, DOC_H, 6, 6)
+
+    -- Outer frame (warm brown for paper, dark leather for book)
+    local frame_r, frame_g, frame_b
+    if is_book then
+        frame_r, frame_g, frame_b = 0.32, 0.18, 0.10
+    else
+        frame_r, frame_g, frame_b = 0.55, 0.32, 0.12
+    end
+    love.graphics.setColor(frame_r, frame_g, frame_b)
+    love.graphics.rectangle("fill", doc_x, doc_y, DOC_W, DOC_H, 6, 6)
+
+    -- Inner parchment area
+    local parch_x = doc_x + BIND_W
+    local parch_y = doc_y + 10
+    local parch_w = DOC_W - BIND_W - 10
+    local parch_h = DOC_H - 20 - 48
+
+    if is_book then
+        love.graphics.setColor(0.93, 0.89, 0.82)
+    else
+        love.graphics.setColor(0.97, 0.94, 0.84)
+    end
+    love.graphics.rectangle("fill", parch_x, parch_y, parch_w, parch_h, 3, 3)
+
+    -- Aged border on parchment
+    love.graphics.setColor(0.70, 0.58, 0.38, 0.25)
+    love.graphics.setLineWidth(3)
+    love.graphics.rectangle("line", parch_x, parch_y, parch_w, parch_h, 3, 3)
+
+    -- Subtle inner shadow (line rect inset 4px)
+    love.graphics.setColor(0, 0, 0, 0.08)
+    love.graphics.setLineWidth(8)
+    love.graphics.rectangle("line",
+        parch_x + 4, parch_y + 4,
+        parch_w - 8, parch_h - 8, 3, 3)
+
+    -- Binding decorations
+    if is_book then
+        -- Dark spine strip on the left BIND_W of the frame
+        love.graphics.setColor(frame_r * 0.7, frame_g * 0.7, frame_b * 0.7)
+        love.graphics.rectangle("fill", doc_x, doc_y, BIND_W, DOC_H, 6, 6)
+        -- 1px white highlight at right edge of spine
+        love.graphics.setColor(1, 1, 1, 0.35)
+        love.graphics.setLineWidth(1)
+        love.graphics.line(doc_x + BIND_W, doc_y, doc_x + BIND_W, doc_y + DOC_H)
+    else
+        -- 10 red spiral holes down the left binding strip
+        local hole_zone_top    = parch_y + 10
+        local hole_zone_bottom = parch_y + parch_h - 10
+        local step = (hole_zone_bottom - hole_zone_top) / 9
+        for i = 0, 9 do
+            local hx = doc_x + BIND_W / 2
+            local hy = hole_zone_top + i * step
+            -- outer circle: dark brown
+            love.graphics.setColor(0.15, 0.06, 0.04, 0.9)
+            love.graphics.circle("fill", hx, hy, 6)
+            -- inner circle: dark red
+            love.graphics.setColor(0.72, 0.18, 0.12, 0.8)
+            love.graphics.circle("fill", hx, hy, 4)
+            -- highlight circle
+            love.graphics.setColor(0.90, 0.35, 0.25, 0.5)
+            love.graphics.circle("fill", hx - 1, hy - 1, 2)
+        end
+    end
+
+    -- Title: strip .txt, replace underscores with spaces, capitalize each word
+    local raw_title = item.filename:gsub("%.txt$", ""):gsub("_", " ")
+    local title = raw_title:gsub("(%a)([%w_']*)", function(first, rest)
+        return first:upper() .. rest:lower()
+    end)
+
+    love.graphics.setFont(M.font)
+    local title_x = parch_x + 8
+    local title_y = parch_y + 10
+    local title_w = parch_w - 16
+    love.graphics.setColor(0.35, 0.20, 0.08)
+    love.graphics.printf(title, title_x, title_y, title_w, "center")
+
+    local title_h = M.font:getHeight()
+
+    -- Thin horizontal divider 8px below title
+    local divider_y = title_y + title_h + 8
+    love.graphics.setColor(0.55, 0.40, 0.20, 0.50)
+    love.graphics.setLineWidth(1)
+    love.graphics.line(parch_x + 8, divider_y, parch_x + parch_w - 8, divider_y)
+
+    -- Content text area (clipped to parchment interior)
+    local tx = parch_x + 12
+    local ty = divider_y + 8
+    local tw = parch_w - 24
+
+    love.graphics.setScissor(parch_x, parch_y, parch_w, parch_h)
+    local text_font = M.font_handwriting or M.font
+    love.graphics.setFont(text_font)
+    love.graphics.setColor(0.18, 0.12, 0.06)
+    love.graphics.printf(item.content, tx, ty, tw, "left")
+    love.graphics.setScissor()
+
+    -- Restore default font for close button label
+    love.graphics.setFont(M.font)
+
+    -- Close button
+    local btn_x = doc_x + (DOC_W - BTN_W) / 2
+    local btn_y = doc_y + DOC_H - BTN_H - 10
+    love.graphics.setColor(frame_r * 1.15, frame_g * 1.15, frame_b * 1.15)
+    love.graphics.rectangle("fill", btn_x, btn_y, BTN_W, BTN_H, 4, 4)
+    love.graphics.setColor(0.97, 0.90, 0.72)
+    love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
+    M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
+end
+
 function M.draw(state, term, best)
     love.graphics.setColor(C.bg)
     love.graphics.rectangle("fill", 0, 0, M.W, M.H)
     draw_terminal(state, term)
-    draw_map(state)
+    draw_room_view(state)
     draw_status_bar(state)
     if state.won then
         draw_win_screen(state, best)
     end
+    draw_popup(state)
 end
 
 return M

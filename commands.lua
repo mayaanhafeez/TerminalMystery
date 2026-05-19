@@ -95,9 +95,10 @@ function handlers.ls(state, _)
     end
     table.insert(out, "Evidence:")
     -- sort filenames for stable display
+    local items = World.get_items_in_room(state.current_room)
     local fnames = {}
-    for fname, _ in pairs(room.files) do
-        table.insert(fnames, fname)
+    for _, item in ipairs(items) do
+        table.insert(fnames, item.filename)
     end
     table.sort(fnames)
     if #fnames == 0 then
@@ -172,16 +173,16 @@ function handlers.cat(state, args)
         return "Usage: cat <file>     (try `ls` to see what is in this room)"
     end
     local fname = args[1]
-    local room = World.rooms[state.current_room]
-    local content = room.files[fname]
-    if content then
+    local item = World.get_item(state.current_room, fname)
+    if item then
         state.files_read[state.current_room .. "/" .. fname] = true
         World.check_unlocks(state)
-        return content
+        state.popup_item = item
+        return item.content
     end
     -- friendly redirect if the file exists in another visited room
     for room_id, _ in pairs(state.visited) do
-        if World.rooms[room_id].files[fname] then
+        if World.get_item(room_id, fname) then
             return "That document is in the " .. World.rooms[room_id].name
                 .. ", not here."
         end
@@ -232,26 +233,25 @@ function handlers.grep(state, args)
         end
         table.sort(room_ids)
         for _, room_id in ipairs(room_ids) do
-            local room = World.rooms[room_id]
-            local fnames = {}
-            for fn, _ in pairs(room.files) do
-                table.insert(fnames, fn)
+            local items = World.get_items_in_room(room_id)
+            local sorted = {}
+            for _, it in ipairs(items) do
+                table.insert(sorted, it)
             end
-            table.sort(fnames)
-            for _, fn in ipairs(fnames) do
-                search_one(room_id, fn, room.files[fn])
+            table.sort(sorted, function(a, b) return a.filename < b.filename end)
+            for _, it in ipairs(sorted) do
+                search_one(room_id, it.filename, it.content)
             end
         end
     else
         if not fname then
             return "Usage: grep <pattern> <file>\n       grep -r <pattern>"
         end
-        local room = World.rooms[state.current_room]
-        local content = room.files[fname]
-        if not content then
+        local item = World.get_item(state.current_room, fname)
+        if not item then
             return "There is nothing here by that name."
         end
-        search_one(state.current_room, fname, content)
+        search_one(state.current_room, fname, item.content)
     end
 
     if #results == 0 then

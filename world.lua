@@ -64,34 +64,6 @@ to the north, and the Cellar door open to the south.
 
 A folded note rests on the side table. The guest list lies
 beside it, in Lord Ashworth's own hand.]],
-        files = {
-            ["welcome.txt"] =
-[[Dear Investigator,
-
-If you are reading this, the worst has happened. I have left
-this note for whoever finds Edmund.
-
-I suspect one of our guests means him harm. I overheard a
-quarrel in the Library yesterday — voices raised about money
-and a "matter of professional ruin." I dared not enter.
-
-Find the truth. Edmund deserves no less.
-
-— A friend]],
-            ["guest_list.txt"] =
-[[Guests in residence the night of October 14th, 1923:
-
-  Lady Vivienne Ashworth      (wife of the deceased)
-  Dr. Reginald Croft          (family physician)
-  Miss Eliza Hartwell         (governess to the children)
-  Captain Theodore Blackwood  (army comrade of Lord Ashworth)
-
-Staff dismissed for the evening at 8pm by Lord Ashworth's
-explicit instruction.
-
-Lord Edmund Ashworth retired to his Study at approximately
-9:45 PM. He was found at 10:20 PM by Lady Vivienne.]],
-        },
     },
 
     library = {
@@ -106,32 +78,6 @@ Floor-to-ceiling oak shelves rise to a coffered ceiling. The
 fire in the grate has burnt low. A reading chair sits near the
 window, beside it a small writing table where someone has
 recently been working — a torn sheet of paper lies upon it.]],
-        files = {
-            ["torn_letter.txt"] =
-[==[... and I cannot impress upon you strongly enough, Edmund,
-the gravity of what I have found. The fund for the medical
-treatment of the village children is missing nearly three
-hundred pounds. The ledger entries are in R.C.'s hand.
-
-I do not wish to believe it of him. We have known the man
-since the war. But the figures do not lie, and I will be
-forced to lay this before the magistrate at the end of the
-month unless he confesses and makes restitution.
-
-I have asked him to come to me on the evening of the 14th
-to settle the matter privately. God grant me the wisdom
-[remainder torn away]]==],
-            ["bookshelf_log.txt"] =
-[[Volumes recently borrowed (per the library ledger):
-
-  - "A Treatise on Hellebore and Other Garden Poisons"
-  - "The Encyclopaedia of Tropical Maladies"
-  - "Reminiscences of the Crimean Campaign"
-  - "Modern Methods in Forensic Science"
-
-The first title was signed out by Lady Vivienne Ashworth.
-She is, by her own admission, a keen amateur gardener.]],
-        },
     },
 
     study = {
@@ -148,8 +94,127 @@ The room smells of pipe tobacco and something sweeter —
 something almost floral.
 
 The desk is strewn with papers; a leather diary lies open.]],
-        files = {
-            ["victim.txt"] =
+    },
+
+    conservatory = {
+        id = "conservatory",
+        name = "Conservatory",
+        x = 2, y = 1,
+        exits = { "foyer" },
+        description =
+[[The Conservatory.
+
+A long glasshouse running the length of the manor's north
+wing. Lamplight glints off the panes. The air is heavy with
+the perfume of orchids and damp earth. A small wrought-iron
+table holds the remains of a tea service — and a leather
+notebook left open beside it.]],
+    },
+
+    cellar = {
+        id = "cellar",
+        name = "Cellar",
+        x = 2, y = 3,
+        exits = { "foyer" },
+        description =
+[[The Cellar.
+
+Cool and dim. The smell of damp stone and old wood. Wine
+racks line the walls in long, orderly rows. A barrel sits
+in the centre, its lid askew — and something white has been
+hastily shoved between it and the wall.]],
+    },
+}
+
+-- Top-level item list. Each item has:
+--   id       unique string key
+--   filename the name used with cat/ls/grep
+--   content  the full text of the evidence
+--   room     which room it belongs to
+--   x, y     position in room (0.0–1.0 relative), used by the room view
+--   sprite   placeholder key for when real art assets are available
+--   removed  set to true if the item is taken / consumed (future use)
+M.items = {
+    -- Foyer
+    {
+        id = "welcome",        filename = "welcome.txt",
+        room = "foyer",        x = 0.30, y = 0.35,
+        sprite = "paper",      removed = false,
+        content =
+[[Dear Investigator,
+
+If you are reading this, the worst has happened. I have left
+this note for whoever finds Edmund.
+
+I suspect one of our guests means him harm. I overheard a
+quarrel in the Library yesterday — voices raised about money
+and a "matter of professional ruin." I dared not enter.
+
+Find the truth. Edmund deserves no less.
+
+— A friend]],
+    },
+    {
+        id = "guest_list",     filename = "guest_list.txt",
+        room = "foyer",        x = 0.65, y = 0.50,
+        sprite = "paper",      removed = false,
+        content =
+[[Guests in residence the night of October 14th, 1923:
+
+  Lady Vivienne Ashworth      (wife of the deceased)
+  Dr. Reginald Croft          (family physician)
+  Miss Eliza Hartwell         (governess to the children)
+  Captain Theodore Blackwood  (army comrade of Lord Ashworth)
+
+Staff dismissed for the evening at 8pm by Lord Ashworth's
+explicit instruction.
+
+Lord Edmund Ashworth retired to his Study at approximately
+9:45 PM. He was found at 10:20 PM by Lady Vivienne.]],
+    },
+
+    -- Library
+    {
+        id = "torn_letter",    filename = "torn_letter.txt",
+        room = "library",      x = 0.35, y = 0.60,
+        sprite = "paper",      removed = false,
+        content =
+[==[... and I cannot impress upon you strongly enough, Edmund,
+the gravity of what I have found. The fund for the medical
+treatment of the village children is missing nearly three
+hundred pounds. The ledger entries are in R.C.'s hand.
+
+I do not wish to believe it of him. We have known the man
+since the war. But the figures do not lie, and I will be
+forced to lay this before the magistrate at the end of the
+month unless he confesses and makes restitution.
+
+I have asked him to come to me on the evening of the 14th
+to settle the matter privately. God grant me the wisdom
+[remainder torn away]]==],
+    },
+    {
+        id = "bookshelf_log",  filename = "bookshelf_log.txt",
+        room = "library",      x = 0.70, y = 0.35,
+        sprite = "book",       removed = false,
+        content =
+[[Volumes recently borrowed (per the library ledger):
+
+  - "A Treatise on Hellebore and Other Garden Poisons"
+  - "The Encyclopaedia of Tropical Maladies"
+  - "Reminiscences of the Crimean Campaign"
+  - "Modern Methods in Forensic Science"
+
+The first title was signed out by Lady Vivienne Ashworth.
+She is, by her own admission, a keen amateur gardener.]],
+    },
+
+    -- Study
+    {
+        id = "victim",         filename = "victim.txt",
+        room = "study",        x = 0.50, y = 0.40,
+        sprite = "paper",      removed = false,
+        content =
 [[Lord Edmund Ashworth, aged 54.
 
 Cause of death (preliminary): cardiac arrest, almost certainly
@@ -163,7 +228,12 @@ On the desk: a half-finished glass of brandy. A small medicine
 bottle, empty. The bottle bears no label.
 
 Time of death: between 10:00 and 10:20 PM.]],
-            ["alibi_notes.txt"] =
+    },
+    {
+        id = "alibi_notes",    filename = "alibi_notes.txt",
+        room = "study",        x = 0.25, y = 0.65,
+        sprite = "paper",      removed = false,
+        content =
 [[Statements collected immediately after the body was found:
 
 Lady Vivienne Ashworth:
@@ -183,7 +253,12 @@ Captain Theodore Blackwood:
   "I was in the Cellar selecting a bottle of port. Edmund
    keeps — kept — an excellent 1897 down there. I returned
    to the drawing room at about 10:15."]],
-            ["desk_diary.txt"] =
+    },
+    {
+        id = "desk_diary",     filename = "desk_diary.txt",
+        room = "study",        x = 0.70, y = 0.55,
+        sprite = "book",       removed = false,
+        content =
 [[From Lord Ashworth's desk diary, entry for October 14th:
 
   "10 pm — R. to call upon me here in the Study. I shall
@@ -193,24 +268,14 @@ Captain Theodore Blackwood:
 
    If he refuses, I will have no choice but to write to the
    magistrate in the morning."]],
-        },
     },
 
-    conservatory = {
-        id = "conservatory",
-        name = "Conservatory",
-        x = 2, y = 1,
-        exits = { "foyer" },
-        description =
-[[The Conservatory.
-
-A long glasshouse running the length of the manor's north
-wing. Lamplight glints off the panes. The air is heavy with
-the perfume of orchids and damp earth. A small wrought-iron
-table holds the remains of a tea service — and a leather
-notebook left open beside it.]],
-        files = {
-            ["tea_service.txt"] =
+    -- Conservatory
+    {
+        id = "tea_service",    filename = "tea_service.txt",
+        room = "conservatory", x = 0.40, y = 0.45,
+        sprite = "paper",      removed = false,
+        content =
 [[On the iron table: a porcelain tea set arranged for two.
 
 Both cups have been used. One is empty; the other contains
@@ -219,7 +284,12 @@ is half-full and still faintly warm to the touch.
 
 This room was occupied this evening, by at least two people,
 despite what the alibis claim.]],
-            ["prescription.txt"] =
+    },
+    {
+        id = "prescription",   filename = "prescription.txt",
+        room = "conservatory", x = 0.68, y = 0.65,
+        sprite = "paper",      removed = false,
+        content =
 [[The leather notebook on the table is a physician's
 prescription pad. The topmost page reads:
 
@@ -236,23 +306,14 @@ would stop a strong man's heart within minutes.
 
 A torn corner of the same paper has been crumpled and dropped
 beneath the table, as if in haste.]],
-        },
     },
 
-    cellar = {
-        id = "cellar",
-        name = "Cellar",
-        x = 2, y = 3,
-        exits = { "foyer" },
-        description =
-[[The Cellar.
-
-Cool and dim. The smell of damp stone and old wood. Wine
-racks line the walls in long, orderly rows. A barrel sits
-in the centre, its lid askew — and something white has been
-hastily shoved between it and the wall.]],
-        files = {
-            ["bloody_glove.txt"] =
+    -- Cellar
+    {
+        id = "bloody_glove",   filename = "bloody_glove.txt",
+        room = "cellar",       x = 0.35, y = 0.55,
+        sprite = "glove",      removed = false,
+        content =
 [[Tucked behind a barrel of '97 port: a single white surgeon's
 glove, balled up and damp. The cotton is stained dark brown
 along the thumb and forefinger — the colour of dried blood,
@@ -265,7 +326,12 @@ thread:
 
 A second glove is not in evidence. Whoever wore it was here
 this evening, and was in a hurry.]],
-            ["wine_inventory.txt"] =
+    },
+    {
+        id = "wine_inventory", filename = "wine_inventory.txt",
+        room = "cellar",       x = 0.65, y = 0.38,
+        sprite = "paper",      removed = false,
+        content =
 [[Recent withdrawals from the cellar (per the steward's log):
 
   Oct 12 — 1 bottle Madeira, Lady V.
@@ -274,9 +340,30 @@ this evening, and was in a hurry.]],
   Oct 14 — 1 bottle brandy, Lord E.
 
 The brandy bottle from the 14th cannot be located.]],
-        },
     },
 }
+
+-- Returns a list of non-removed items that belong to the given room_id.
+function M.get_items_in_room(room_id)
+    local result = {}
+    for _, item in ipairs(M.items) do
+        if item.room == room_id and not item.removed then
+            table.insert(result, item)
+        end
+    end
+    return result
+end
+
+-- Returns a single non-removed item matching room_id + filename, or nil.
+function M.get_item(room_id, filename)
+    for _, item in ipairs(M.items) do
+        if item.room == room_id and item.filename == filename
+                and not item.removed then
+            return item
+        end
+    end
+    return nil
+end
 
 -- Build a fresh game state. Called on game start and on replay (R on win).
 function M.new_state()
@@ -296,6 +383,7 @@ function M.new_state()
         won            = false,
         win_time       = nil,
         win_commands   = nil,
+        popup_item     = nil,
     }
 end
 
