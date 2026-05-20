@@ -9,6 +9,9 @@ local function cat(state, args)
     local fname = args[1]
     local item = World.get_item(state.current_room, fname)
     if item then
+        if item.mode == "000" then
+            return "Permission denied. That document is restricted."
+        end
         state.files_read[state.current_room .. "/" .. fname] = true
         World.check_unlocks(state)
         state.popup_item = item
@@ -164,4 +167,123 @@ local function grep(state, args)
     return table.concat(results, "\n")
 end
 
-return { cat = cat, grep = grep }
+local function find(state, args)
+    if #args == 0 then
+        return "Usage: find <name>  or  find . -name <name>\n"
+            .. "Append -a to include hidden files."
+    end
+
+    local fname_pattern = nil
+    local include_hidden = false
+    local i = 1
+    while i <= #args do
+        local a = args[i]
+        if a == "-a" then
+            include_hidden = true
+        elseif a == "-name" then
+            i = i + 1
+            if args[i] then fname_pattern = args[i] end
+        elseif a ~= "." then
+            fname_pattern = a
+        end
+        i = i + 1
+    end
+
+    if not fname_pattern then
+        return "find: missing filename pattern"
+    end
+
+    local function fname_matches(fname, pattern)
+        local p = pattern:lower()
+        local f = fname:lower()
+        if p:find("%*", 1, true) then
+            local lua_pat = "^"
+                .. p:gsub("%%", "%%%%"):gsub("%.", "%%.")
+                     :gsub("%+", "%%+"):gsub("%-", "%%-")
+                     :gsub("%^", "%%^"):gsub("%$", "%%$")
+                     :gsub("%(", "%%("):gsub("%)", "%%)")
+                     :gsub("%[", "%%["):gsub("%]", "%%]")
+                     :gsub("%*", ".*")
+                .. "$"
+            return f:match(lua_pat) ~= nil
+        end
+        return f:find(p, 1, true) ~= nil
+    end
+
+    local room_ids = {}
+    for id in pairs(state.visited) do table.insert(room_ids, id) end
+    table.sort(room_ids)
+
+    local results = {}
+    for _, room_id in ipairs(room_ids) do
+        local items = World.get_items_in_room(room_id, include_hidden)
+        for _, item in ipairs(items) do
+            if fname_matches(item.filename, fname_pattern) then
+                table.insert(results, "./" .. World.rooms[room_id].name
+                    .. "/" .. item.filename)
+            end
+        end
+    end
+
+    if #results == 0 then return "(no matching files in visited rooms)" end
+    return table.concat(results, "\n")
+end
+
+local function diff(state, args)
+    if #args < 2 then
+        return "Usage: diff <file1> <file2>"
+    end
+    local fname1, fname2 = args[1], args[2]
+
+    local function find_anywhere(fname)
+        local item = World.get_item(state.current_room, fname)
+        if item then return item, state.current_room end
+        for room_id in pairs(state.visited) do
+            if room_id ~= state.current_room then
+                local it = World.get_item(room_id, fname)
+                if it then return it, room_id end
+            end
+        end
+        return nil, nil
+    end
+
+    local item1, room1 = find_anywhere(fname1)
+    local item2, room2 = find_anywhere(fname2)
+    if not item1 then return "diff: " .. fname1 .. ": no such file" end
+    if not item2 then return "diff: " .. fname2 .. ": no such file" end
+
+    if not state.files_read[room1 .. "/" .. fname1] then
+        return "You have not read " .. fname1 .. " yet. Use `cat` first."
+    end
+    if not state.files_read[room2 .. "/" .. fname2] then
+        return "You have not read " .. fname2 .. " yet. Use `cat` first."
+    end
+
+    local function split_lines(content)
+        local lines = {}
+        for line in (content .. "\n"):gmatch("([^\n]*)\n") do
+            table.insert(lines, line)
+        end
+        return lines
+    end
+
+    local lines1 = split_lines(item1.content)
+    local lines2 = split_lines(item2.content)
+
+    local out = { "--- " .. fname1, "+++ " .. fname2 }
+    local has_diff = false
+    local max = math.max(#lines1, #lines2)
+    for i = 1, max do
+        local l1, l2 = lines1[i], lines2[i]
+        if l1 ~= l2 then
+            has_diff = true
+            if l1 ~= nil then table.insert(out, "- " .. l1) end
+            if l2 ~= nil then table.insert(out, "+ " .. l2) end
+        end
+    end
+
+    if not has_diff then return "(files are identical)" end
+    return table.concat(out, "\n")
+end
+
+return { cat = cat, grep = grep, find = find, diff = diff }

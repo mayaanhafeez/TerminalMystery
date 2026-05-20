@@ -6,12 +6,15 @@ local function room_path(room_id)
     local parts = {}
     local id = room_id
     while id do
-        local room = World.rooms[id]
-        table.insert(parts, 1, room.id)
-        id = room.parent
+        table.insert(parts, World.rooms[id].id)
+        id = World.rooms[id].parent
+    end
+    local n = #parts
+    for i = 1, math.floor(n / 2) do
+        parts[i], parts[n - i + 1] = parts[n - i + 1], parts[i]
     end
     parts[1] = "~"
-    if #parts == 1 then return "~" end
+    if n == 1 then return "~" end
     return table.concat(parts, "/")
 end
 
@@ -129,6 +132,20 @@ local function cd(state, args)
                 end
                 return "There is no such place as \"" .. comp
                     .. "\" in the mansion. Try `ls` for exits."
+            end
+            local dest = World.rooms[next_id]
+            if dest.mode == "000" then
+                return "Permission denied. The " .. dest.name .. " is locked."
+            end
+            if dest.requires then
+                local key_present = false
+                for _, it in ipairs(World.get_items_in_room(next_id, true)) do
+                    if it.id == dest.requires then key_present = true; break end
+                end
+                if not key_present then
+                    return "The door is locked. You need something to enter the "
+                        .. dest.name .. "."
+                end
             end
             cursor = next_id
             table.insert(traversed, cursor)

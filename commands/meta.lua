@@ -5,7 +5,7 @@ local World = require("world")
 local function help(state, _)
     local lines = {
         "Available commands:",
-        "  ls                       list the contents of this room",
+        "  ls [-a]                  list the contents of this room (-a shows hidden)",
         "  pwd                      print current room path",
         "  cwd                      print previous room path",
         "  cd <room>                move to an adjacent room",
@@ -30,6 +30,12 @@ local function help(state, _)
         table.insert(lines,
             "  grep ...                 (not yet — read two pieces of evidence first)")
     end
+    table.insert(lines, "  find <name>              search for a file across visited rooms")
+    table.insert(lines, "  diff <file1> <file2>     compare two files (both must be cat'd first)")
+    table.insert(lines, "  rm <file>                destroy evidence (irreversible; rm -f skips prompt)")
+    table.insert(lines, "  cp <file> <room>         copy a file to a visited room")
+    table.insert(lines, "  mv <file> <room>         move a file to a visited room")
+    table.insert(lines, "  chmod <mode> <target>    set permissions on a room or file")
     table.insert(lines, "")
     table.insert(lines, "Tip: filenames you find with `ls` are case-sensitive.")
     table.insert(lines, "Tip: `accuse` takes a surname or a full name.")
