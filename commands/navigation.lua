@@ -18,19 +18,96 @@ local function room_path(room_id)
     return table.concat(parts, "/")
 end
 
+-- Resolve a slash-separated path from from_id without mutating state.
+-- Returns target room id on success, or nil + error string on failure.
+local function resolve_path(from_id, path_str, previous_room)
+    local root_id
+    for id, r in pairs(World.rooms) do
+        if not r.parent then root_id = id; break end
+    end
+
+    local function find_adjacent(cursor, name)
+        local name_lower = name:lower()
+        for _, exit in ipairs(World.get_exits(cursor)) do
+            local r = World.rooms[exit]
+            if r.id == name_lower or r.name:lower() == name_lower then
+                return exit
+            end
+        end
+        return nil
+    end
+
+    local components = {}
+    for part in path_str:gmatch("[^/]+") do
+        local trimmed = part:match("^%s*(.-)%s*$")
+        if trimmed ~= "" then table.insert(components, trimmed) end
+    end
+
+    local cursor = from_id
+    for _, comp in ipairs(components) do
+        if comp == "." then
+            -- no-op
+        elseif comp == "-" then
+            cursor = previous_room or cursor
+        elseif comp == ".." then
+            cursor = World.rooms[cursor].parent or cursor
+        elseif comp == "~" then
+            cursor = root_id
+        else
+            local next_id = find_adjacent(cursor, comp)
+            if not next_id then
+                local comp_lower = comp:lower()
+                for id, r in pairs(World.rooms) do
+                    if id == comp_lower or r.name:lower() == comp_lower then
+                        return nil, "no direct path to " .. r.name
+                            .. " from " .. World.rooms[cursor].name
+                    end
+                end
+                return nil, comp .. ": No such directory"
+            end
+            cursor = next_id
+        end
+    end
+    return cursor
+end
+
 local function ls(state, args)
-    local show_hidden = args[1] == "-a"
-    local room = World.rooms[state.current_room]
+    local show_hidden = false
+    local path_parts = {}
+
+    for _, a in ipairs(args) do
+        if a == "-a" then
+            show_hidden = true
+        elseif a:sub(1, 1) == "-" then
+            return "ls: " .. a .. ": invalid option\nusage: ls [-a] [path]"
+        else
+            table.insert(path_parts, a)
+        end
+    end
+
+    local target_id = state.current_room
+    if #path_parts > 0 then
+        -- join with "/" so "ls .. study" and "ls ../study" both work
+        local path_str = table.concat(path_parts, "/")
+        local resolved, err = resolve_path(state.current_room, path_str, state.previous_room)
+        if not resolved then
+            return "ls: " .. err
+        end
+        target_id = resolved
+    end
+
+    local room = World.rooms[target_id]
     local out = {}
     table.insert(out, "-- " .. room.name .. " --")
     table.insert(out, "Exits:")
-    for _, exit in ipairs(World.get_exits(state.current_room)) do
-        if not World.rooms[exit].hidden then
-            table.insert(out, "  " .. World.rooms[exit].name)
+    for _, exit in ipairs(World.get_exits(target_id)) do
+        local r = World.rooms[exit]
+        if show_hidden or not r.hidden then
+            table.insert(out, "  " .. r.name)
         end
     end
     table.insert(out, "Evidence:")
-    local items = World.get_items_in_room(state.current_room, show_hidden)
+    local items = World.get_items_in_room(target_id, show_hidden)
     local fnames = {}
     for _, item in ipairs(items) do
         table.insert(fnames, item.filename)
@@ -124,14 +201,13 @@ local function cd(state, args)
             local next_id = find_adjacent(cursor, comp)
             if not next_id then
                 local comp_lower = comp:lower()
-                for id, r in pairs(World.rooms) do
-                    if id == comp_lower or r.name:lower() == comp_lower then
+                for _, r in pairs(World.rooms) do
+                    if r.id == comp_lower or r.name:lower() == comp_lower then
                         return "There is no direct path to the " .. r.name
                             .. " from the " .. World.rooms[cursor].name .. "."
                     end
                 end
-                return "There is no such place as \"" .. comp
-                    .. "\" in the mansion. Try `ls` for exits."
+                return comp .. ": No such directory"
             end
             local dest = World.rooms[next_id]
             if dest.mode == "000" then
@@ -167,7 +243,6 @@ end
 
 local function pwd(state, _)
     return room_path(state.current_room)
-        .. "  (" .. World.rooms[state.current_room].name .. ")"
 end
 
 local function cwd(state, _)
@@ -176,7 +251,6 @@ local function cwd(state, _)
         return "(no previous room — you have not moved yet)"
     end
     return room_path(prev)
-        .. "  (" .. World.rooms[prev].name .. ")"
 end
 
 return { ls = ls, cd = cd, pwd = pwd, cwd = cwd }

@@ -96,6 +96,14 @@ something almost floral.
 The desk is strewn with papers; a leather diary lies open.]],
 	},
 
+	closet = {
+		id = ".closet",
+		name = ".closet",
+		parent = "study",
+		hidden = true,
+		description = [[A hidden closet behind a bookshelf. {WIP}]],
+	},
+
 	conservatory = {
 		id = "conservatory",
 		name = "Conservatory",
