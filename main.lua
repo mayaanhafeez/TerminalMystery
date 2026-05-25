@@ -141,6 +141,8 @@ function love.textinput(t)
     if state.popup_item then return end
     if state.won then return end
     term.input = term.input .. t
+    cursor_timer = 0
+    term.cursor_visible = true
 end
 
 function love.keypressed(key)
@@ -160,10 +162,22 @@ function love.keypressed(key)
         execute_input()
 
     elseif key == "backspace" then
-        local off = utf8.offset(term.input, -1)
-        if off then
-            term.input = term.input:sub(1, off - 1)
+        if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
+            -- ctrl+w: delete word backward
+            local s = term.input:gsub("%s*%S+%s*$", "")
+            if s == term.input then s = "" end
+            term.input = s
+            cursor_timer = 0; term.cursor_visible = true
+        else
+            local off = utf8.offset(term.input, -1)
+            if off then
+                term.input = term.input:sub(1, off - 1)
+            end
         end
+
+    elseif key == "u" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
+        term.input = ""
+        cursor_timer = 0; term.cursor_visible = true
 
     elseif key == "up" then
         if #term.history > 0 then
