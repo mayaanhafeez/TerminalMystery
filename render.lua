@@ -229,6 +229,8 @@ local function draw_terminal(state, term)
 				love.graphics.setColor(C.system)
 			elseif entry.kind == "error" then
 				love.graphics.setColor(C.win_record)
+			elseif entry.kind == "completion" then
+				love.graphics.setColor(C.term_dim)
 			else
 				love.graphics.setColor(C.term_text)
 			end

@@ -478,6 +478,29 @@ function M.new_state()
 	}
 end
 
+-- Resolve a file path like "library/torn_letter.txt" or plain "torn_letter.txt".
+-- Returns room_id, filename on success, or nil, nil, error_string on failure.
+-- "." or "./" is treated as the current room.
+function M.resolve_file_path(current_room_id, path_str)
+	if not path_str:find("/", 1, true) then
+		return current_room_id, path_str
+	end
+	local room_part, file_part = path_str:match("^([^/]+)/(.*)$")
+	if not room_part then
+		return nil, nil, "invalid path: " .. path_str
+	end
+	if room_part == "." then
+		return current_room_id, (file_part ~= "" and file_part or nil)
+	end
+	local rp_lower = room_part:lower()
+	for id, r in pairs(M.rooms) do
+		if id == rp_lower or r.name:lower() == rp_lower then
+			return id, (file_part ~= "" and file_part or nil)
+		end
+	end
+	return nil, nil, room_part .. ": no such room"
+end
+
 -- Recompute which gated commands are now available.
 function M.check_unlocks(state)
 	-- grep unlocks once the player has read two or more pieces of evidence.

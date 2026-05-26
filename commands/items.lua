@@ -4,30 +4,51 @@ local World = require("world")
 
 local function mv(state, args)
     if #args < 2 then
-        return "Usage: mv <file> <room>"
+        return "Usage: mv <source> <destination>  (source may be room/file)"
     end
-    local fname = args[1]
-    local target_name = table.concat(args, " ", 2)
-    local item = World.get_item(state.current_room, fname)
+    local src_path = args[1]
+    local dst_arg  = table.concat(args, " ", 2)
+
+    local src_room_id, src_fname, err = World.resolve_file_path(state.current_room, src_path)
+    if err then return "mv: " .. err end
+    if not src_fname then return "mv: " .. src_path .. ": is a directory" end
+
+    local item = World.get_item(src_room_id, src_fname)
     if not item then
-        return "mv: " .. fname .. ": no such file in this room"
+        return "mv: " .. src_path .. ": no such file"
     end
-    local name_lower = target_name:lower()
-    local target_id = nil
-    for id, room in pairs(World.rooms) do
-        if (id == name_lower or room.name:lower() == name_lower) and state.visited[id] then
-            target_id = id
-            break
+
+    -- Resolve destination: room name, ".", or "./room" style
+    local dst_id
+    local dst_lower = dst_arg:lower()
+    if dst_arg == "." or dst_arg == "./" then
+        dst_id = state.current_room
+    else
+        for id, room in pairs(World.rooms) do
+            if (id == dst_lower or room.name:lower() == dst_lower) and state.visited[id] then
+                dst_id = id; break
+            end
+        end
+        -- Also accept "RoomName/" with trailing slash
+        if not dst_id then
+            local bare = dst_arg:match("^(.-)/?$")
+            local bare_lower = bare:lower()
+            for id, room in pairs(World.rooms) do
+                if (id == bare_lower or room.name:lower() == bare_lower) and state.visited[id] then
+                    dst_id = id; break
+                end
+            end
         end
     end
-    if not target_id then
-        return "mv: " .. target_name .. ": no such visited room"
+
+    if not dst_id then
+        return "mv: " .. dst_arg .. ": no such visited room"
     end
-    if target_id == state.current_room then
+    if dst_id == src_room_id then
         return "mv: source and destination are the same room"
     end
-    item.room = target_id
-    return "Moved " .. fname .. " to " .. World.rooms[target_id].name .. "."
+    item.room = dst_id
+    return "Moved " .. src_fname .. " to " .. World.rooms[dst_id].name .. "."
 end
 
 local function cp(state, args)

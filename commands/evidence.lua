@@ -6,20 +6,32 @@ local function cat(state, args)
     if #args == 0 then
         return "Usage: cat <file>     (try `ls` to see what is in this room)"
     end
-    local fname = args[1]
-    local item = World.get_item(state.current_room, fname)
+    local path = args[1]
+    local room_id, fname, err = World.resolve_file_path(state.current_room, path)
+    if err then return "cat: " .. err end
+    if not fname then
+        return "cat: " .. path .. ": is a directory"
+    end
+
+    local item = World.get_item(room_id, fname)
     if item then
         if item.mode == "000" then
             return "Permission denied. That document is restricted."
         end
-        state.files_read[state.current_room .. "/" .. fname] = true
+        state.files_read[room_id .. "/" .. fname] = true
         World.check_unlocks(state)
         state.popup_item = item
         return item.content
     end
-    for room_id, _ in pairs(state.visited) do
-        if World.get_item(room_id, fname) then
-            return "That document is in the " .. World.rooms[room_id].name
+    -- Cross-room path was explicit: just report missing
+    if room_id ~= state.current_room then
+        return "cat: " .. path .. ": no such file in "
+            .. World.rooms[room_id].name
+    end
+    -- Plain filename: hint if the file exists elsewhere
+    for visited_id in pairs(state.visited) do
+        if World.get_item(visited_id, fname) then
+            return "That document is in the " .. World.rooms[visited_id].name
                 .. ", not here."
         end
     end
