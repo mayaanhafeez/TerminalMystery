@@ -65,7 +65,9 @@ M.font_big = nil
 M.font_small = nil -- used for minimap labels
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
 M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
-M.sprites = {} -- sprite_key -> Image (item icons)
+M.sprites       = {} -- item-icon sprites (sprite_key -> {img, scale})
+M.floor_tiles   = {} -- room_id  -> Image (16×16 NES floor tile)
+M.room_sprites  = {} -- name     -> Image (furniture / rug sprites)
 
 local TILE_PATH = "assets/kenney_tiny-dungeon/Tiles/"
 
@@ -81,24 +83,47 @@ local ASSET_SPRITES = {
 	sword = "assets/kenney_tiny-dungeon/Tiles/tile_0104.png",
 }
 
-local SPRITE_TARGET_PX = 80 -- all sprites are displayed at this pixel size
+local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
 
-local function load_tile(filename)
-	local ok, img = pcall(love.graphics.newImage, TILE_PATH .. filename .. ".png")
-	if ok then
-		img:setFilter("nearest", "nearest")
-	end
+local NES_SCALE = 3  -- each 16×16 floor tile rendered at 48×48 px
+
+-- RGBA colour tint applied on top of the tiled floor texture, per room
+local FLOOR_TINT = {
+	foyer        = {0.88, 0.80, 0.58, 0.20},  -- warm cream on checker
+	library      = {0.04, 0.16, 0.04, 0.50},  -- deep forest green
+	study        = {0.20, 0.14, 0.26, 0.35},  -- rich plum
+	conservatory = {0.14, 0.32, 0.28, 0.30},  -- cool teal
+	cellar       = {0.02, 0.02, 0.03, 0.75},  -- near-black stone
+	bedroom      = {0.78, 0.55, 0.30, 0.25},  -- amber warmth
+}
+
+-- Per-room furniture: { sprite_name, nx (0..1 centre anchor), max_height_px }
+local ROOM_FURNITURE = {
+	foyer        = { {"dresser_flower",0.10,150}, {"clock",0.48,72}, {"mirror",0.72,215} },
+	library      = { {"shelf_full",0.14,205},    {"painting",0.50,82}, {"shelf_empty",0.86,205} },
+	study        = { {"mirror",0.28,215},         {"dresser",0.82,150} },
+	conservatory = { {"dresser_flower",0.10,140}, {"clock",0.50,72},  {"painting",0.88,82} },
+	cellar       = { {"armoire",0.50,170} },
+	bedroom      = { {"dresser_flower",0.10,150}, {"mirror",0.70,215} },
+}
+
+local ROOM_RUG    = { library=true, bedroom=true }
+local FURNITURE_H = 230  -- px reserved below the banner for back-wall furniture
+
+local function load_img(path, filter)
+	local ok, img = pcall(love.graphics.newImage, path)
+	if ok then img:setFilter(filter or "linear", filter or "linear") end
 	return ok and img or nil
 end
 
 function M.load()
 	if love.filesystem.getInfo("font.ttf") then
-		M.font = love.graphics.newFont("font.ttf", 15)
-		M.font_big = love.graphics.newFont("font.ttf", 28)
+		M.font       = love.graphics.newFont("font.ttf", 15)
+		M.font_big   = love.graphics.newFont("font.ttf", 28)
 		M.font_small = love.graphics.newFont("font.ttf", 10)
 	else
-		M.font = love.graphics.newFont(14)
-		M.font_big = love.graphics.newFont(26)
+		M.font       = love.graphics.newFont(14)
+		M.font_big   = love.graphics.newFont(26)
 		M.font_small = love.graphics.newFont(10)
 	end
 	love.graphics.setFont(M.font)
@@ -107,18 +132,29 @@ function M.load()
 		M.font_handwriting = love.graphics.newFont("handwriting.ttf", 16)
 	end
 
+	-- Item icon sprites (Kenney tiles + direct assets)
 	for key, tile in pairs(TILE_SPRITES) do
-		local img = load_tile(tile)
-		if img then
-			M.sprites[key] = { img = img, scale = SPRITE_TARGET_PX / img:getWidth() }
-		end
+		local img = load_img(TILE_PATH .. tile .. ".png", "nearest")
+		if img then M.sprites[key] = { img=img, scale=SPRITE_TARGET_PX/img:getWidth() } end
 	end
 	for key, path in pairs(ASSET_SPRITES) do
-		local ok, img = pcall(love.graphics.newImage, path)
-		if ok then
-			img:setFilter("nearest", "nearest")
-			M.sprites[key] = { img = img, scale = SPRITE_TARGET_PX / img:getWidth() }
-		end
+		local img = load_img(path, "nearest")
+		if img then M.sprites[key] = { img=img, scale=SPRITE_TARGET_PX/img:getWidth() } end
+	end
+
+	-- Floor tiles (16×16 NES PNGs, one per room)
+	for _, room_id in ipairs({"foyer","library","study","conservatory","cellar","bedroom"}) do
+		local img = load_img("assets/sprites/floor/" .. room_id .. ".png", "nearest")
+		if img then M.floor_tiles[room_id] = img end
+	end
+
+	-- Furniture / rug sprites (2dpixx individual PNGs)
+	for _, name in ipairs({
+		"dresser_flower","dresser","shelf_full","shelf_empty",
+		"painting","clock","mirror","armoire","rug",
+	}) do
+		local img = load_img("assets/sprites/furniture/" .. name .. ".png", "linear")
+		if img then M.room_sprites[name] = img end
 	end
 end
 
@@ -364,58 +400,91 @@ local function draw_room_view(state)
 	local pw = M.MAP_W
 	local ph = M.H - M.STATUS_H
 
-	local room_id = state.current_room
+	local room_id  = state.current_room
 	local room_def = World.rooms[room_id]
-	local wall = C.room_wall[room_id] or { 0.18, 0.16, 0.20 }
+	local wall  = C.room_wall[room_id]  or { 0.18, 0.16, 0.20 }
 	local floor = C.room_floor[room_id] or { 0.30, 0.28, 0.26 }
 
 	-- ---- outer wall fill ----
 	love.graphics.setColor(wall)
 	love.graphics.rectangle("fill", px, py, pw, ph)
 
-	-- dividing line
 	love.graphics.setColor(C.map_border)
 	love.graphics.setLineWidth(2)
 	love.graphics.line(px, py, px, py + ph)
 
-	-- ---- floor interior (inset 24px) ----
+	-- ---- floor interior (inset 24 px) ----
 	local BORDER = 24
 	local fx = px + BORDER
 	local fy = py + BORDER
 	local fw = pw - 2 * BORDER
 	local fh = ph - 2 * BORDER
 
-	love.graphics.setColor(floor)
-	love.graphics.rectangle("fill", fx, fy, fw, fh, 3, 3)
-
-	-- Subtle grout grid (very faint lines at 64px intervals)
-	local GRID = 64
-	love.graphics.setColor(wall[1], wall[2], wall[3], 0.18)
-	love.graphics.setLineWidth(1)
+	-- ---- tiled NES floor ----
+	local tile_px  = 16 * NES_SCALE  -- 48 px rendered tile
+	local floor_img = M.floor_tiles[room_id]
 	love.graphics.setScissor(fx, fy, fw, fh)
-	local gx = fx + GRID
-	while gx < fx + fw do
-		love.graphics.line(gx, fy, gx, fy + fh)
-		gx = gx + GRID
-	end
-	local gy = fy + GRID
-	while gy < fy + fh do
-		love.graphics.line(fx, gy, fx + fw, gy)
-		gy = gy + GRID
+	if floor_img then
+		love.graphics.setColor(1, 1, 1)
+		local ry = fy
+		while ry < fy + fh do
+			local rx = fx
+			while rx < fx + fw do
+				love.graphics.draw(floor_img, rx, ry, 0, NES_SCALE, NES_SCALE)
+				rx = rx + tile_px
+			end
+			ry = ry + tile_px
+		end
+		local t = FLOOR_TINT[room_id] or {0,0,0,0}
+		love.graphics.setColor(t[1], t[2], t[3], t[4])
+		love.graphics.rectangle("fill", fx, fy, fw, fh)
+	else
+		love.graphics.setColor(floor)
+		love.graphics.rectangle("fill", fx, fy, fw, fh)
 	end
 	love.graphics.setScissor()
 
-	-- Inner shadow along top and left edges of floor
+	-- ---- rug ----
+	if ROOM_RUG[room_id] then
+		local rug = M.room_sprites.rug
+		if rug then
+			local rw    = fw * 0.54
+			local rs    = rw / rug:getWidth()
+			local rh    = rug:getHeight() * rs
+			love.graphics.setColor(1, 1, 1, 0.82)
+			love.graphics.draw(rug, fx + (fw-rw)/2, fy + fh - rh - 10, 0, rs, rs)
+		end
+	end
+
+	-- ---- back-wall furniture ----
+	local BANNER_H = M.font_big:getHeight() + M.PAD
+	local fur_y    = fy + BANNER_H + 6
+	local furn = ROOM_FURNITURE[room_id]
+	if furn then
+		love.graphics.setScissor(fx, fy, fw, fh)
+		for _, piece in ipairs(furn) do
+			local name, nx, max_h = piece[1], piece[2], piece[3]
+			local img = M.room_sprites[name]
+			if img then
+				local sc = max_h / img:getHeight()
+				local sw = img:getWidth()  * sc
+				local dx = math.max(fx, math.min(fx + nx*fw - sw/2, fx + fw - sw))
+				love.graphics.setColor(1, 1, 1)
+				love.graphics.draw(img, dx, fur_y, 0, sc, sc)
+			end
+		end
+		love.graphics.setScissor()
+	end
+
+	-- Inner shadow along top and left edges
 	love.graphics.setColor(0, 0, 0, 0.22)
 	love.graphics.setLineWidth(4)
 	love.graphics.line(fx, fy, fx + fw, fy)
 	love.graphics.line(fx, fy, fx, fy + fh)
 
 	-- ---- room name banner ----
-	local BANNER_H = M.font_big:getHeight() + M.PAD
-	love.graphics.setColor(0, 0, 0, 0.48)
+	love.graphics.setColor(0, 0, 0, 0.52)
 	love.graphics.rectangle("fill", fx, fy, fw, BANNER_H, 3, 3)
-	-- subtle bottom divider
 	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
 	love.graphics.setLineWidth(1)
 	love.graphics.line(fx + 8, fy + BANNER_H, fx + fw - 8, fy + BANNER_H)
@@ -423,29 +492,28 @@ local function draw_room_view(state)
 	love.graphics.setFont(M.font_big)
 	love.graphics.setColor(C.status_text)
 	local rname = room_def.name
-	local rnw = M.font_big:getWidth(rname)
+	local rnw   = M.font_big:getWidth(rname)
 	love.graphics.print(rname, px + (pw - rnw) / 2, fy + (BANNER_H - M.font_big:getHeight()) / 2)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
-	local GLOW_R = 34
+	local GLOW_R  = 34
 
-	local ITEM_TOP = fy + BANNER_H + M.PAD
-	local ITEM_BOTTOM = fy + fh - 148
-	local ITEM_LEFT = fx + M.PAD
-	local ITEM_RIGHT = fx + fw - M.PAD
+	local ITEM_TOP    = fy + BANNER_H + FURNITURE_H + M.PAD
+	local ITEM_BOTTOM = fy + fh - 160
+	local ITEM_LEFT   = fx + M.PAD
+	local ITEM_RIGHT  = fx + fw - M.PAD
 	local item_zone_w = ITEM_RIGHT - ITEM_LEFT
-	local item_zone_h = ITEM_BOTTOM - ITEM_TOP
+	local item_zone_h = math.max(1, ITEM_BOTTOM - ITEM_TOP)
 
 	love.graphics.setFont(M.font)
 	local items = World.get_items_in_room(room_id)
 	for _, item in ipairs(items) do
 		local cx = ITEM_LEFT + item.x * item_zone_w
-		local cy = ITEM_TOP + item.y * item_zone_h
+		local cy = ITEM_TOP  + item.y * item_zone_h
 		local ix = cx - ITEM_PX / 2
 		local iy = cy - ITEM_PX / 2
 
-		-- Warm glow (two-pass: soft outer, brighter inner)
 		love.graphics.setColor(0.95, 0.78, 0.25, 0.18)
 		love.graphics.circle("fill", cx, cy, GLOW_R + 16)
 		love.graphics.setColor(0.95, 0.78, 0.25, 0.42)
@@ -463,23 +531,22 @@ local function draw_room_view(state)
 			love.graphics.rectangle("line", ix, iy, ITEM_PX, ITEM_PX, 6, 6)
 		end
 
-		-- Label with drop-shadow for readability
 		local label = item.filename:gsub("%.%w+$", "")
-		local lw = M.font:getWidth(label)
-		local lx = cx - lw / 2
-		local ly = iy + ITEM_PX + 4
+		local lw    = M.font:getWidth(label)
+		local lx    = cx - lw / 2
+		local ly    = iy + ITEM_PX + 4
 		love.graphics.setColor(0, 0, 0, 0.65)
 		love.graphics.print(label, lx + 1, ly + 1)
 		love.graphics.setColor(C.item_label)
 		love.graphics.print(label, lx, ly)
 	end
 
-	-- ---- minimap overlay (bottom-right, 160x120, inset 8px) ----
-	local MM_W = 160
-	local MM_H = 120
+	-- ---- minimap overlay (bottom-right, 160×120, inset 8 px) ----
+	local MM_W   = 160
+	local MM_H   = 120
 	local MM_INS = 8
-	local mm_x = px + pw - MM_W - MM_INS
-	local mm_y = py + ph - MM_H - MM_INS
+	local mm_x   = px + pw - MM_W - MM_INS
+	local mm_y   = py + ph - MM_H - MM_INS
 	draw_minimap(state, mm_x, mm_y, MM_W, MM_H)
 end
 

@@ -163,7 +163,6 @@ function love.keypressed(key)
 
     elseif key == "backspace" then
         if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
-            -- ctrl+w: delete word backward
             local s = term.input:gsub("%s*%S+%s*$", "")
             if s == term.input then s = "" end
             term.input = s
@@ -174,6 +173,12 @@ function love.keypressed(key)
                 term.input = term.input:sub(1, off - 1)
             end
         end
+
+    elseif key == "w" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
+        local s = term.input:gsub("%s*%S+%s*$", "")
+        if s == term.input then s = "" end
+        term.input = s
+        cursor_timer = 0; term.cursor_visible = true
 
     elseif key == "u" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
         term.input = ""
