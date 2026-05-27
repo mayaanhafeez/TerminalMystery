@@ -14,39 +14,19 @@ local function mv(state, args)
     if not src_fname then return "mv: " .. src_path .. ": is a directory" end
 
     local item = World.get_item(src_room_id, src_fname)
-    if not item then
-        return "mv: " .. src_path .. ": no such file"
-    end
+    if not item then return "mv: " .. src_path .. ": no such file" end
 
-    -- Resolve destination: room name, ".", or "./room" style
-    local dst_id
-    local dst_lower = dst_arg:lower()
-    if dst_arg == "." or dst_arg == "./" then
-        dst_id = state.current_room
-    else
-        for id, room in pairs(World.rooms) do
-            if (id == dst_lower or room.name:lower() == dst_lower) and state.visited[id] then
-                dst_id = id; break
-            end
-        end
-        -- Also accept "RoomName/" with trailing slash
-        if not dst_id then
-            local bare = dst_arg:match("^(.-)/?$")
-            local bare_lower = bare:lower()
-            for id, room in pairs(World.rooms) do
-                if (id == bare_lower or room.name:lower() == bare_lower) and state.visited[id] then
-                    dst_id = id; break
-                end
-            end
-        end
-    end
-
-    if not dst_id then
+    local dst_id, resolve_err = World.resolve_room_path(state.current_room, dst_arg)
+    if resolve_err then return "mv: " .. resolve_err end
+    if not state.visited[dst_id] then
         return "mv: " .. dst_arg .. ": no such visited room"
     end
     if dst_id == src_room_id then
         return "mv: source and destination are the same room"
     end
+
+    World.rooms[src_room_id].items[src_fname] = nil
+    World.rooms[dst_id].items[src_fname] = item
     item.room = dst_id
     return "Moved " .. src_fname .. " to " .. World.rooms[dst_id].name .. "."
 end
@@ -55,21 +35,15 @@ local function cp(state, args)
     if #args < 2 then
         return "Usage: cp <file> <room>"
     end
-    local fname = args[1]
+    local fname       = args[1]
     local target_name = table.concat(args, " ", 2)
+
     local item = World.get_item(state.current_room, fname)
-    if not item then
-        return "cp: " .. fname .. ": no such file in this room"
-    end
-    local name_lower = target_name:lower()
-    local target_id = nil
-    for id, room in pairs(World.rooms) do
-        if (id == name_lower or room.name:lower() == name_lower) and state.visited[id] then
-            target_id = id
-            break
-        end
-    end
-    if not target_id then
+    if not item then return "cp: " .. fname .. ": no such file in this room" end
+
+    local target_id, resolve_err = World.resolve_room_path(state.current_room, target_name)
+    if resolve_err then return "cp: " .. resolve_err end
+    if not state.visited[target_id] then
         return "cp: " .. target_name .. ": no such visited room"
     end
     if target_id == state.current_room then
@@ -78,12 +52,13 @@ local function cp(state, args)
     if World.get_item(target_id, fname) then
         return "cp: " .. fname .. " already exists in " .. World.rooms[target_id].name
     end
+
     local copy = {}
     for k, v in pairs(item) do copy[k] = v end
-    copy.room = target_id
+    copy.id     = item.id .. "_copy_" .. target_id
+    copy.room   = target_id
     copy.copied = true
-    copy.id = item.id .. "_copy_" .. target_id
-    table.insert(World.items, copy)
+    World.rooms[target_id].items[copy.filename] = copy
     return "Copied " .. fname .. " to " .. World.rooms[target_id].name .. "."
 end
 
@@ -99,18 +74,16 @@ local function rm(state, args)
     else
         fname = args[1]
     end
-    if not fname then
-        return "Usage: rm -f <file>"
-    end
+    if not fname then return "Usage: rm -f <file>" end
+
     local item = World.get_item(state.current_room, fname)
-    if not item then
-        return "rm: " .. fname .. ": no such file"
-    end
+    if not item then return "rm: " .. fname .. ": no such file" end
     if not force then
         return "This cannot be undone. Run `rm -f " .. fname
             .. "` to permanently destroy this evidence."
     end
-    item.removed = true
+
+    World.rooms[state.current_room].items[fname] = nil
     if not state.destroyed then state.destroyed = {} end
     state.destroyed[state.current_room .. "/" .. fname] = true
     return "rm: " .. fname .. " destroyed."
@@ -121,9 +94,9 @@ local function chmod(state, args)
         return "Usage: chmod <mode> <room|file>\n"
             .. "Example: chmod 000 cellar  or  chmod 755 cellar"
     end
-    local mode = args[1]
+    local mode        = args[1]
     local target_name = table.concat(args, " ", 2)
-    local name_lower = target_name:lower()
+    local name_lower  = target_name:lower()
     for id, room in pairs(World.rooms) do
         if id == name_lower or room.name:lower() == name_lower then
             room.mode = mode
