@@ -358,40 +358,40 @@ local function draw_minimap(state, mx, my, mw, mh)
 
 	-- room cells (skip hidden rooms)
 	for id, room in pairs(World.rooms) do
-		if room.hidden then goto continue end
-		local x, y, w, h = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
-		local is_current = (state.current_room == id)
-		local is_visited = state.visited[id] == true
+		if not room.hidden then
+			local x, y, w, h = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
+			local is_current = (state.current_room == id)
+			local is_visited = state.visited[id] == true
 
-		local fill, text_color
-		if is_current then
-			fill, text_color = C.room_current, C.room_text_curr
-		elseif is_visited then
-			fill, text_color = C.room_visited, C.room_text
-		else
-			fill, text_color = C.room_unvisited, C.room_text_dim
-		end
-
-		love.graphics.setColor(fill)
-		love.graphics.rectangle("fill", x, y, w, h, 3, 3)
-		love.graphics.setColor(C.map_border)
-		love.graphics.setLineWidth(1)
-		love.graphics.rectangle("line", x, y, w, h, 3, 3)
-
-		love.graphics.setFont(M.font_small)
-		love.graphics.setColor(text_color)
-		-- Truncate label with "." until it fits the cell width
-		local label = room.name
-		local max_lw = w - 4
-		if M.font_small:getWidth(label) > max_lw then
-			while #label > 1 and M.font_small:getWidth(label .. ".") > max_lw do
-				label = label:sub(1, -2)
+			local fill, text_color
+			if is_current then
+				fill, text_color = C.room_current, C.room_text_curr
+			elseif is_visited then
+				fill, text_color = C.room_visited, C.room_text
+			else
+				fill, text_color = C.room_unvisited, C.room_text_dim
 			end
-			label = label .. "."
+
+			love.graphics.setColor(fill)
+			love.graphics.rectangle("fill", x, y, w, h, 3, 3)
+			love.graphics.setColor(C.map_border)
+			love.graphics.setLineWidth(1)
+			love.graphics.rectangle("line", x, y, w, h, 3, 3)
+
+			love.graphics.setFont(M.font_small)
+			love.graphics.setColor(text_color)
+			-- Truncate label with "." until it fits the cell width
+			local label = room.name
+			local max_lw = w - 4
+			if M.font_small:getWidth(label) > max_lw then
+				while #label > 1 and M.font_small:getWidth(label .. ".") > max_lw do
+					label = label:sub(1, -2)
+				end
+				label = label .. "."
+			end
+			local lw = M.font_small:getWidth(label)
+			love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_small:getHeight()) / 2)
 		end
-		local lw = M.font_small:getWidth(label)
-		love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_small:getHeight()) / 2)
-		::continue::
 	end
 end
 

@@ -1,0 +1,26 @@
+{
+  "name": "terminal_mystery",
+  "version": "1.0.0",
+  "description": "A small murder-mystery game played through a fake terminal. The mansion is laid out as a virtual filesystem — rooms are directories, evidence is files — and you solve the case by walking around, reading clues, and using `grep` to draw lines between them.",
+  "main": "index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build": "zip -r terminal_mystery.love main.lua world.lua render.lua conf.lua commands/ assets/ handwriting.ttf && ./node_modules/.bin/love.js terminal_mystery.love web --title 'Terminal Mystery' --memory 67108864 && cp web-index.html web/index.html",
+    "serve": "node server.js",
+    "test": "node server.js & sleep 2 && npx playwright test; kill %1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github-personal:mayaanhafeez/TerminalMystery.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "love.js": "^11.4.1"
+  }
+}
