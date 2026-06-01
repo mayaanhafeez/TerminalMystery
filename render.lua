@@ -5,7 +5,7 @@ local World = require("world")
 
 local M = {}
 
--- Window layout
+-- Window layout (updated dynamically by M.resize)
 M.W = 1280
 M.H = 800
 M.STATUS_H = 28
@@ -13,6 +13,17 @@ M.TERM_W = 760
 M.MAP_X = M.TERM_W
 M.MAP_W = M.W - M.TERM_W
 M.PAD = 14
+
+-- Terminal panel is always ~59.4% of window width (760/1280).
+local TERM_RATIO = 760 / 1280
+
+function M.resize(w, h)
+	M.W = w
+	M.H = h
+	M.TERM_W = math.floor(w * TERM_RATIO)
+	M.MAP_X  = M.TERM_W
+	M.MAP_W  = w - M.TERM_W
+end
 
 -- Palette
 local C = {
@@ -156,6 +167,9 @@ function M.load()
 		local img = load_img("assets/sprites/furniture/" .. name .. ".png", "linear")
 		if img then M.room_sprites[name] = img end
 	end
+
+	local w, h = love.graphics.getDimensions()
+	M.resize(w, h)
 end
 
 function M.terminal_text_width()

@@ -60,6 +60,7 @@ end
 
 local function push_text(text, kind)
 	kind = kind or "output"
+	table.insert(term.messages, { text = text, kind = kind })
 	local wrapped = Render.wrap_text(text)
 	for _, line in ipairs(wrapped) do
 		table.insert(term.lines, { text = line, kind = kind })
@@ -77,6 +78,13 @@ local function clear_tab_state()
 			break
 		end
 	end
+	for i = #term.messages, 1, -1 do
+		if term.messages[i].kind == "completion" then
+			table.remove(term.messages, i)
+		else
+			break
+		end
+	end
 	term.tab_candidates = nil
 	term.tab_index = nil
 end
@@ -84,6 +92,7 @@ end
 local function init_game()
 	state = World.new_state()
 	term = {
+		messages = {},
 		lines = {},
 		input = "",
 		scroll = 0,
@@ -121,6 +130,18 @@ end
 
 function love.draw()
 	Render.draw(state, term, best)
+end
+
+function love.resize(w, h)
+	Render.resize(w, h)
+	-- Re-wrap all terminal lines to fit the new panel width.
+	term.lines = {}
+	for _, msg in ipairs(term.messages) do
+		local wrapped = Render.wrap_text(msg.text)
+		for _, line in ipairs(wrapped) do
+			table.insert(term.lines, { text = line, kind = msg.kind })
+		end
+	end
 end
 
 local function on_win(result_text)
