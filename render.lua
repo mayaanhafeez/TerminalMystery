@@ -5,8 +5,8 @@ local World = require("world")
 
 local M = {}
 
--- something related to render
--- Window layout (updated dynamically by M.resize)
+-- Virtual (design) resolution. All draw code uses these dimensions; the final
+-- frame is scaled uniformly to fit the window and centered with letterbox bars.
 M.W = 1280
 M.H = 800
 M.STATUS_H = 28
@@ -15,15 +15,22 @@ M.MAP_X = M.TERM_W
 M.MAP_W = M.W - M.TERM_W
 M.PAD = 14
 
--- Terminal panel is always ~59.4% of window width (760/1280).
-local TERM_RATIO = 760 / 1280
+-- Updated by M.resize when the window changes.
+M.scale = 1
+M.offset_x = 0
+M.offset_y = 0
 
-function M.resize(w, h)
-	M.W = w
-	M.H = h
-	M.TERM_W = math.floor(w * TERM_RATIO)
-	M.MAP_X = M.TERM_W
-	M.MAP_W = w - M.TERM_W
+function M.resize(window_w, window_h)
+	local sx = window_w / M.W
+	local sy = window_h / M.H
+	M.scale = math.min(sx, sy)
+	M.offset_x = math.floor((window_w - M.W * M.scale) / 2)
+	M.offset_y = math.floor((window_h - M.H * M.scale) / 2)
+end
+
+-- Convert a window-space coordinate (e.g. mouse position) to virtual space.
+function M.window_to_virtual(x, y)
+	return (x - M.offset_x) / M.scale, (y - M.offset_y) / M.scale
 end
 
 -- Palette
@@ -67,7 +74,8 @@ M.font = nil
 M.font_big = nil
 M.font_small = nil -- used for minimap labels
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
-M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
+M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise (virtual coords)
+M.canvas = nil -- offscreen target rendered at the virtual resolution
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
 M.room_sprites = {} -- name     -> Image (furniture / rug sprites)
@@ -155,6 +163,9 @@ function M.load()
 			M.room_sprites[name] = img
 		end
 	end
+
+	M.canvas = love.graphics.newCanvas(M.W, M.H)
+	M.canvas:setFilter("linear", "linear")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -397,7 +408,7 @@ local function draw_room_view(state)
 
 	local room_id = state.current_room
 	local room_def = World.rooms[room_id]
-	local wall  = room_def.wall  or { 0.18, 0.16, 0.20 }
+	local wall = room_def.wall or { 0.18, 0.16, 0.20 }
 	local floor = room_def.floor or { 0.30, 0.28, 0.26 }
 
 	-- ---- outer wall fill ----
@@ -827,6 +838,8 @@ local function draw_popup(state)
 end
 
 function M.draw(state, term, best)
+	love.graphics.setCanvas(M.canvas)
+	love.graphics.clear()
 	love.graphics.setColor(C.bg)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
@@ -836,6 +849,10 @@ function M.draw(state, term, best)
 		draw_win_screen(state, best)
 	end
 	draw_popup(state)
+	love.graphics.setCanvas()
+
+	love.graphics.setColor(1, 1, 1)
+	love.graphics.draw(M.canvas, M.offset_x, M.offset_y, 0, M.scale, M.scale)
 end
 
 return M

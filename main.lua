@@ -134,14 +134,6 @@ end
 
 function love.resize(w, h)
 	Render.resize(w, h)
-	-- Re-wrap all terminal lines to fit the new panel width.
-	term.lines = {}
-	for _, msg in ipairs(term.messages) do
-		local wrapped = Render.wrap_text(msg.text)
-		for _, line in ipairs(wrapped) do
-			table.insert(term.lines, { text = line, kind = msg.kind })
-		end
-	end
 end
 
 local function on_win(result_text)
@@ -308,8 +300,9 @@ end
 
 function love.mousepressed(x, y, button)
 	if button == 1 and state.popup_item and Render.popup_close_rect then
+		local vx, vy = Render.window_to_virtual(x, y)
 		local r = Render.popup_close_rect
-		if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
+		if vx >= r.x and vx <= r.x + r.w and vy >= r.y and vy <= r.y + r.h then
 			state.popup_item = nil
 		end
 	end
