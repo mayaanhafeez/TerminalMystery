@@ -89,6 +89,26 @@ local function clear_tab_state()
 	term.tab_index = nil
 end
 
+local function rewrap_terminal()
+	if not term then
+		return
+	end
+	term.lines = {}
+	for _, msg in ipairs(term.messages) do
+		local wrapped = Render.wrap_text(msg.text)
+		for _, line in ipairs(wrapped) do
+			table.insert(term.lines, { text = line, kind = msg.kind })
+		end
+	end
+end
+
+local function ctrl_or_cmd_down()
+	return love.keyboard.isDown("lctrl")
+		or love.keyboard.isDown("rctrl")
+		or love.keyboard.isDown("lgui")
+		or love.keyboard.isDown("rgui")
+end
+
 local function init_game()
 	state = World.new_state()
 	term = {
@@ -134,6 +154,7 @@ end
 
 function love.resize(w, h)
 	Render.resize(w, h)
+	rewrap_terminal()
 end
 
 local function on_win(result_text)
@@ -295,14 +316,25 @@ function love.keypressed(key)
 		term.scroll = math.max(0, #term.lines - 10)
 	elseif key == "end" then
 		term.scroll = 0
+	elseif (key == "=" or key == "kp+") and ctrl_or_cmd_down() then
+		if Render.set_font_scale(Render.font_scale + 0.1) then
+			rewrap_terminal()
+		end
+	elseif (key == "-" or key == "kp-") and ctrl_or_cmd_down() then
+		if Render.set_font_scale(Render.font_scale - 0.1) then
+			rewrap_terminal()
+		end
+	elseif key == "0" and ctrl_or_cmd_down() then
+		if Render.set_font_scale(1) then
+			rewrap_terminal()
+		end
 	end
 end
 
 function love.mousepressed(x, y, button)
 	if button == 1 and state.popup_item and Render.popup_close_rect then
-		local vx, vy = Render.window_to_virtual(x, y)
 		local r = Render.popup_close_rect
-		if vx >= r.x and vx <= r.x + r.w and vy >= r.y and vy <= r.y + r.h then
+		if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
 			state.popup_item = nil
 		end
 	end

@@ -5,32 +5,51 @@ local World = require("world")
 
 local M = {}
 
--- Virtual (design) resolution. All draw code uses these dimensions; the final
--- frame is scaled uniformly to fit the window and centered with letterbox bars.
+-- The room view (right panel) is drawn at a fixed virtual resolution into an
+-- offscreen canvas and then scaled uniformly to a rect that preserves that
+-- aspect ratio. The split between the terminal panel (left) and the room
+-- panel is recomputed in M.resize so the room fits the available height
+-- without letterbox bars; the terminal takes whatever width is left over and
+-- reflows its text. Status bar spans the full window at the bottom.
+local ROOM_VW = 520
+local ROOM_VH = 772
+local ROOM_ASPECT = ROOM_VW / ROOM_VH
+local MIN_TERM_W = 400
+
 M.W = 1280
 M.H = 800
 M.STATUS_H = 28
 M.TERM_W = 760
-M.MAP_X = M.TERM_W
-M.MAP_W = M.W - M.TERM_W
+M.MAP_X = 760
+M.MAP_W = 520
 M.PAD = 14
 
--- Updated by M.resize when the window changes.
-M.scale = 1
-M.offset_x = 0
-M.offset_y = 0
+-- On-screen rect where the room canvas is blitted (set by M.resize).
+M.room_x = 760
+M.room_y = 0
+M.room_w = 520
+M.room_h = 772
 
-function M.resize(window_w, window_h)
-	local sx = window_w / M.W
-	local sy = window_h / M.H
-	M.scale = math.min(sx, sy)
-	M.offset_x = math.floor((window_w - M.W * M.scale) / 2)
-	M.offset_y = math.floor((window_h - M.H * M.scale) / 2)
-end
-
--- Convert a window-space coordinate (e.g. mouse position) to virtual space.
-function M.window_to_virtual(x, y)
-	return (x - M.offset_x) / M.scale, (y - M.offset_y) / M.scale
+function M.resize(w, h)
+	M.W = w
+	M.H = h
+	local avail_h = math.max(1, h - M.STATUS_H)
+	local room_w = avail_h * ROOM_ASPECT
+	if w - room_w < MIN_TERM_W then
+		room_w = math.max(1, w - MIN_TERM_W)
+	end
+	local room_h = room_w / ROOM_ASPECT
+	if room_h > avail_h then
+		room_h = avail_h
+		room_w = room_h * ROOM_ASPECT
+	end
+	M.room_w = room_w
+	M.room_h = room_h
+	M.TERM_W = w - room_w
+	M.MAP_X = M.TERM_W
+	M.MAP_W = room_w
+	M.room_x = M.TERM_W
+	M.room_y = (avail_h - room_h) / 2
 end
 
 -- Palette
@@ -70,12 +89,14 @@ local LINE_COLOURS = {
 	completion = C.term_dim,
 }
 
-M.font = nil
+M.font = nil -- room view, popup, win screen (fixed size)
+M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
 M.font_big = nil
 M.font_small = nil -- used for minimap labels
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
-M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise (virtual coords)
-M.canvas = nil -- offscreen target rendered at the virtual resolution
+M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
+M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
+M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
 M.room_sprites = {} -- name     -> Image (furniture / rug sprites)
@@ -108,7 +129,16 @@ local function load_img(path, filter)
 	return ok and img or nil
 end
 
-function M.load()
+local function load_terminal_font()
+	local size = math.max(6, math.floor((love.filesystem.getInfo("font.ttf") and 15 or 14) * M.font_scale + 0.5))
+	if love.filesystem.getInfo("font.ttf") then
+		M.font_term = love.graphics.newFont("font.ttf", size)
+	else
+		M.font_term = love.graphics.newFont(size)
+	end
+end
+
+local function load_fixed_fonts()
 	if love.filesystem.getInfo("font.ttf") then
 		M.font = love.graphics.newFont("font.ttf", 15)
 		M.font_big = love.graphics.newFont("font.ttf", 28)
@@ -118,11 +148,25 @@ function M.load()
 		M.font_big = love.graphics.newFont(26)
 		M.font_small = love.graphics.newFont(10)
 	end
-	love.graphics.setFont(M.font)
-
 	if love.filesystem.getInfo("handwriting.ttf") then
 		M.font_handwriting = love.graphics.newFont("handwriting.ttf", 16)
 	end
+end
+
+function M.set_font_scale(s)
+	local clamped = math.max(0.6, math.min(2.5, s))
+	if clamped == M.font_scale then
+		return false
+	end
+	M.font_scale = clamped
+	load_terminal_font()
+	return true
+end
+
+function M.load()
+	load_fixed_fonts()
+	load_terminal_font()
+	love.graphics.setFont(M.font)
 
 	-- Item icon sprites (Kenney tiles + direct assets)
 	for key, tile in pairs(TILE_SPRITES) do
@@ -164,8 +208,8 @@ function M.load()
 		end
 	end
 
-	M.canvas = love.graphics.newCanvas(M.W, M.H)
-	M.canvas:setFilter("linear", "linear")
+	M.room_canvas = love.graphics.newCanvas(ROOM_VW, ROOM_VH)
+	M.room_canvas:setFilter("linear", "linear")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -175,15 +219,47 @@ function M.terminal_text_width()
 	return M.TERM_W - 2 * M.PAD
 end
 
--- Word-wrap a chunk of text to fit the terminal panel. Preserves leading
--- whitespace on every line (so the wrapped continuation of an indented line
--- stays indented). Returns an array of display lines.
+-- Word-wrap a chunk of text to fit the terminal panel. Manual newlines
+-- inside a prose paragraph are treated as soft wraps and collapsed into
+-- spaces so wide windows reflow the text to fill the available width.
+-- Intentional breaks are preserved: blank lines (paragraph breaks), short
+-- lines (list items like `ls` output), indented next lines, and lines
+-- already ending in a non-word char like `.` `?` `/` `:` `]`.
 function M.wrap_text(text)
-	local font = M.font
+	local font = M.font_term
 	local maxw = M.terminal_text_width()
+	local SOFT_THRESHOLD = 30
+
+	local raw_lines = {}
+	for line in (text .. "\n"):gmatch("([^\n]*)\n") do
+		table.insert(raw_lines, line)
+	end
+
+	local function is_soft(prev, next_line)
+		if #prev < SOFT_THRESHOLD then
+			return false
+		end
+		if next_line == "" or next_line:match("^%s") then
+			return false
+		end
+		return prev:sub(-1):match("%w") ~= nil
+	end
+
+	local merged = {}
+	local i = 1
+	while i <= #raw_lines do
+		local joined = raw_lines[i]
+		local j = i + 1
+		while j <= #raw_lines and is_soft(raw_lines[j - 1], raw_lines[j]) do
+			joined = joined .. " " .. raw_lines[j]
+			j = j + 1
+		end
+		table.insert(merged, joined)
+		i = j
+	end
+
 	local result = {}
-	-- iterate including trailing empty line
-	for raw in (text .. "\n"):gmatch("([^\n]*)\n") do
+	for _, raw in ipairs(merged) do
 		if raw == "" then
 			table.insert(result, "")
 		elseif font:getWidth(raw) <= maxw then
@@ -216,8 +292,8 @@ local function draw_terminal(state, term)
 	love.graphics.setColor(C.term_bg)
 	love.graphics.rectangle("fill", 0, 0, M.TERM_W, M.H - M.STATUS_H)
 
-	love.graphics.setFont(M.font)
-	local line_h = M.font:getHeight() * 1.25
+	love.graphics.setFont(M.font_term)
+	local line_h = M.font_term:getHeight() * 1.25
 
 	-- reserve one line at the bottom for the prompt
 	local prompt_y = M.H - M.STATUS_H - M.PAD - line_h
@@ -247,12 +323,12 @@ local function draw_terminal(state, term)
 	local prompt = "> "
 	love.graphics.print(prompt, M.PAD, prompt_y)
 	love.graphics.setColor(C.term_user)
-	local px = M.PAD + M.font:getWidth(prompt)
+	local px = M.PAD + M.font_term:getWidth(prompt)
 	love.graphics.print(term.input, px, prompt_y)
 	if term.cursor_visible then
-		local cx = px + M.font:getWidth(term.input)
+		local cx = px + M.font_term:getWidth(term.input)
 		love.graphics.setColor(C.term_user)
-		love.graphics.rectangle("fill", cx, prompt_y, M.font:getWidth("M"), M.font:getHeight())
+		love.graphics.rectangle("fill", cx, prompt_y, M.font_term:getWidth("M"), M.font_term:getHeight())
 	end
 
 	if term.scroll > 0 then
@@ -399,12 +475,13 @@ local function draw_minimap(state, mx, my, mw, mh)
 	end
 end
 
--- Draw the main 2D top-down room view in the right panel.
+-- Draw the main 2D top-down room view. Renders into the room canvas at the
+-- fixed virtual resolution; coords are canvas-local (0..ROOM_VW, 0..ROOM_VH).
 local function draw_room_view(state)
-	local px = M.MAP_X
+	local px = 0
 	local py = 0
-	local pw = M.MAP_W
-	local ph = M.H - M.STATUS_H
+	local pw = ROOM_VW
+	local ph = ROOM_VH
 
 	local room_id = state.current_room
 	local room_def = World.rooms[room_id]
@@ -566,15 +643,15 @@ local function draw_status_bar(state)
 	love.graphics.setColor(C.status_bg)
 	love.graphics.rectangle("fill", 0, M.H - M.STATUS_H, M.W, M.STATUS_H)
 
-	love.graphics.setFont(M.font)
+	love.graphics.setFont(M.font_term)
 	love.graphics.setColor(C.status_text)
-	local y = M.H - M.STATUS_H + (M.STATUS_H - M.font:getHeight()) / 2
+	local y = M.H - M.STATUS_H + (M.STATUS_H - M.font_term:getHeight()) / 2
 
 	love.graphics.print("time:     " .. format_time(state.elapsed), M.PAD, y)
 	love.graphics.print("commands: " .. tostring(state.command_count), M.PAD + 240, y)
 
 	local hint = "PgUp/PgDn scroll  |  Up/Dn history  |  type `help`"
-	local hw = M.font:getWidth(hint)
+	local hw = M.font_term:getWidth(hint)
 	love.graphics.print(hint, M.W - M.PAD - hw, y)
 end
 
@@ -838,21 +915,25 @@ local function draw_popup(state)
 end
 
 function M.draw(state, term, best)
-	love.graphics.setCanvas(M.canvas)
+	-- Render the room view into its own virtual-resolution canvas first.
+	love.graphics.setCanvas(M.room_canvas)
 	love.graphics.clear()
+	draw_room_view(state)
+	love.graphics.setCanvas()
+
+	-- Now draw at native window resolution.
 	love.graphics.setColor(C.bg)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
-	draw_room_view(state)
+
+	love.graphics.setColor(1, 1, 1)
+	love.graphics.draw(M.room_canvas, M.room_x, M.room_y, 0, M.room_w / ROOM_VW, M.room_h / ROOM_VH)
+
 	draw_status_bar(state)
 	if state.won then
 		draw_win_screen(state, best)
 	end
 	draw_popup(state)
-	love.graphics.setCanvas()
-
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.draw(M.canvas, M.offset_x, M.offset_y, 0, M.scale, M.scale)
 end
 
 return M
