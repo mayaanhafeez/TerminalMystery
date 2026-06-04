@@ -58,16 +58,16 @@ to the north, and the Cellar door open to the south.
 
 A folded note rests on the side table. The guest list lies
 beside it, in Lord Ashworth's own hand.]],
-		wall       = { 0.34, 0.30, 0.22 },
-		floor      = { 0.72, 0.66, 0.50 },
+		wall = { 0.34, 0.30, 0.22 },
+		floor = { 0.72, 0.66, 0.50 },
 		floor_tint = { 0.88, 0.80, 0.58, 0.20 },
-		furniture  = {
+		furniture = {
 			{ "dresser_flower", 0.10, 150 },
-			{ "clock",          0.48,  72 },
-			{ "mirror",         0.72, 215 },
+			{ "clock", 0.48, 72 },
+			{ "mirror", 0.72, 215 },
 		},
 		items = {
-			{ ref = "welcome",    x = 0.30, y = 0.35 },
+			{ ref = "welcome", x = 0.30, y = 0.35 },
 			{ ref = "guest_list", x = 0.65, y = 0.50 },
 		},
 	},
@@ -80,17 +80,17 @@ Floor-to-ceiling oak shelves rise to a coffered ceiling. The
 fire in the grate has burnt low. A reading chair sits near the
 window, beside it a small writing table where someone has
 recently been working — a torn sheet of paper lies upon it.]],
-		wall       = { 0.12, 0.16, 0.10 },
-		floor      = { 0.28, 0.22, 0.14 },
+		wall = { 0.12, 0.16, 0.10 },
+		floor = { 0.28, 0.22, 0.14 },
 		floor_tint = { 0.04, 0.16, 0.04, 0.50 },
-		rug        = true,
-		furniture  = {
-			{ "shelf_full",  0.14, 205 },
-			{ "painting",    0.50,  82 },
+		rug = true,
+		furniture = {
+			{ "shelf_full", 0.14, 205 },
+			{ "painting", 0.50, 82 },
 			{ "shelf_empty", 0.86, 205 },
 		},
 		items = {
-			{ ref = "torn_letter",  x = 0.35, y = 0.60 },
+			{ ref = "torn_letter", x = 0.35, y = 0.60 },
 			{ ref = "bookshelf_log", x = 0.70, y = 0.35 },
 		},
 	},
@@ -105,17 +105,17 @@ The room smells of pipe tobacco and something sweeter —
 something almost floral.
 
 The desk is strewn with papers; a leather diary lies open.]],
-		wall       = { 0.16, 0.14, 0.18 },
-		floor      = { 0.36, 0.30, 0.26 },
+		wall = { 0.16, 0.14, 0.18 },
+		floor = { 0.36, 0.30, 0.26 },
 		floor_tint = { 0.20, 0.14, 0.26, 0.35 },
-		furniture  = {
-			{ "mirror",  0.28, 215 },
+		furniture = {
+			{ "mirror", 0.28, 215 },
 			{ "dresser", 0.82, 150 },
 		},
 		items = {
-			{ ref = "victim",      x = 0.50, y = 0.40 },
+			{ ref = "victim", x = 0.50, y = 0.40 },
 			{ ref = "alibi_notes", x = 0.25, y = 0.65 },
-			{ ref = "desk_diary",  x = 0.70, y = 0.55 },
+			{ ref = "desk_diary", x = 0.70, y = 0.55 },
 		},
 	},
 
@@ -135,16 +135,16 @@ wing. Lamplight glints off the panes. The air is heavy with
 the perfume of orchids and damp earth. A small wrought-iron
 table holds the remains of a tea service — and a leather
 notebook left open beside it.]],
-		wall       = { 0.12, 0.22, 0.20 },
-		floor      = { 0.46, 0.50, 0.40 },
+		wall = { 0.12, 0.22, 0.20 },
+		floor = { 0.46, 0.50, 0.40 },
 		floor_tint = { 0.14, 0.32, 0.28, 0.30 },
-		furniture  = {
+		furniture = {
 			{ "dresser_flower", 0.10, 140 },
-			{ "clock",          0.50,  72 },
-			{ "painting",       0.88,  82 },
+			{ "clock", 0.50, 72 },
+			{ "painting", 0.88, 82 },
 		},
 		items = {
-			{ ref = "tea_service",  x = 0.40, y = 0.45 },
+			{ ref = "tea_service", x = 0.40, y = 0.45 },
 			{ ref = "prescription", x = 0.68, y = 0.65 },
 		},
 	},
@@ -157,14 +157,14 @@ Cool and dim. The smell of damp stone and old wood. Wine
 racks line the walls in long, orderly rows. A barrel sits
 in the centre, its lid askew — and something white has been
 hastily shoved between it and the wall.]],
-		wall       = { 0.09, 0.08, 0.09 },
-		floor      = { 0.20, 0.18, 0.16 },
+		wall = { 0.09, 0.08, 0.09 },
+		floor = { 0.20, 0.18, 0.16 },
 		floor_tint = { 0.02, 0.02, 0.03, 0.75 },
-		furniture  = {
+		furniture = {
 			{ "armoire", 0.50, 170 },
 		},
 		items = {
-			{ ref = "bloody_glove",   x = 0.35, y = 0.55 },
+			{ ref = "bloody_glove", x = 0.35, y = 0.55 },
 			{ ref = "wine_inventory", x = 0.65, y = 0.38 },
 		},
 	},
@@ -173,10 +173,10 @@ hastily shoved between it and the wall.]],
 		parent = "conservatory",
 		description = [[Sleeping place]],
 		floor_tint = { 0.78, 0.55, 0.30, 0.25 },
-		rug        = true,
-		furniture  = {
+		rug = true,
+		furniture = {
 			{ "dresser_flower", 0.10, 150 },
-			{ "mirror",         0.70, 215 },
+			{ "mirror", 0.70, 215 },
 		},
 		items = {
 			{ ref = "clean_sword", x = 0.35, y = 0.55 },
@@ -195,11 +195,11 @@ for id, def in pairs(raw) do
 		parent = def.parent,
 		hidden = def.hidden,
 		description = def.description,
-		wall       = def.wall,
-		floor      = def.floor,
+		wall = def.wall,
+		floor = def.floor,
 		floor_tint = def.floor_tint,
-		rug        = def.rug,
-		furniture  = def.furniture,
+		rug = def.rug,
+		furniture = def.furniture,
 		items = {},
 	}
 	for _, placement in ipairs(def.items or {}) do
@@ -209,11 +209,11 @@ for id, def in pairs(raw) do
 			for k, v in pairs(reg) do
 				item[k] = v
 			end
-			item.id       = placement.ref
+			item.id = placement.ref
 			item.filename = reg.filename or (placement.ref .. ".txt")
-			item.x        = placement.x
-			item.y        = placement.y
-			item.room     = id
+			item.x = placement.x
+			item.y = placement.y
+			item.room = id
 			room.items[item.filename] = item
 		end
 	end
