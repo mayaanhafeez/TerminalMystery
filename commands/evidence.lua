@@ -4,7 +4,7 @@ local World = require("world")
 
 local function cat(state, args)
 	if #args == 0 then
-		return "Usage: cat <file>     (try `ls` to see what is in this room)" --replace with echoing user input as cat does
+		return "Usage: cat <file>     (try `ls` to see what is in this room)"
 	end
 	local path = args[1]
 	local room_id, fname, err = World.resolve_file_path(state.current_room, path)
