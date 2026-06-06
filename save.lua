@@ -1,20 +1,47 @@
-local love = require("love")
+local function should_save(string)
+  local saveable_fields = {} -- needs to include subfields as well
+  for _ ,v in ipairs(saveable_fields) do
+    if string == v then
+    return true
+    end
+  end
+    return false
+  end
 
-local filename = "saved_states/save.txt"
+local function convert_state_to_string(state) --function taken from https://gist.github.com/justnom/9816256 and modified
+  local state_string = "{"
 
-local function convert_state_to_string(state)
-  local state_string
-  return state_string
+  for k, v in pairs(state) do
+    if type(k) == "string" then
+      state_string = state_string.."[\""..k.."\"]".."="
+    end
+
+    if type(v) == "table" then
+      state_string = state_string..convert_state_to_string(v)
+    elseif type(v) == "boolean" then
+      state_string = state_string..tostring(v)
+    else
+      state_string = state_string..","
+    end
+  end
+
+    if state_string ~= "" then
+      state_string = state_string:sub(1,state_string:len()-1)
+    end
+  return state_string.."}"
 end
 
 local function convert_string_to_state(string)
-  local state
+  local state = {}
+  for str in string.gmatch(string, "([^".."%s".."]+)") do
+    state.insert(state, str)
+  end
   return state
 end
 
 local M = {}
 
-function M.save_state(state)
+function M.save_state(state, filename)
 --saves state: current_room, previous_room, visited, files_read, unlocked, elapsed, command_count
 --writes them to a text file
   local state_string = convert_state_to_string(state)
