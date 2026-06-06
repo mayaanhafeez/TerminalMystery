@@ -1,29 +1,34 @@
-local function should_save(string)
-  local saveable_fields = {} -- needs to include subfields as well
-  for _ ,v in ipairs(saveable_fields) do
-    if string == v then
-    return true
-    end
-  end
-    return false
-  end
+local save_template = {
+  current_room = true,
+  previous_room = true,
+  visited = true,
+  files_read = true,
+  unlocked = true,
+  destroyed = true,
+  elapsed = true,
+  command_count = true
+}
 
-local function convert_state_to_string(state) --function taken from https://gist.github.com/justnom/9816256 and modified
+
+local function convert_state_to_string(state, template) --function taken from https://gist.github.com/justnom/9816256 and modified
   local state_string = "{"
 
   for k, v in pairs(state) do
+    if not template or template[k] then
     if type(k) == "string" then
       state_string = state_string.."[\""..k.."\"]".."="
     end
 
+    local sub_template = template and type(template[k]) == "table" and template[k] or nil
     if type(v) == "table" then
-      state_string = state_string..convert_state_to_string(v)
+      state_string = state_string..convert_state_to_string(v, sub_template)
     elseif type(v) == "string" then
       state_string = state_string.."\""v"\""
     else
       state_string= state_string..tostring(v)
     end
     state_string = state_string..","
+    end
   end
 
     if state_string ~= "" and state_string:sub(-1) == "," then
@@ -45,7 +50,7 @@ local M = {}
 function M.save_state(state, filename)
 --saves state: current_room, previous_room, visited, files_read, unlocked, elapsed, command_count
 --writes them to a text file
-  local state_string = convert_state_to_string(state)
+  local state_string = convert_state_to_string(state, save_template)
   local successs, message = love.filesystem.write(filename, state_string)
   if not successs then
     print(message)
