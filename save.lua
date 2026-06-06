@@ -18,14 +18,15 @@ local function convert_state_to_string(state) --function taken from https://gist
 
     if type(v) == "table" then
       state_string = state_string..convert_state_to_string(v)
-    elseif type(v) == "boolean" then
-      state_string = state_string..tostring(v)
+    elseif type(v) == "string" then
+      state_string = state_string.."\""v"\""
     else
-      state_string = state_string..","
+      state_string= state_string..tostring(v)
     end
+    state_string = state_string..","
   end
 
-    if state_string ~= "" then
+    if state_string ~= "" and state_string:sub(-1) == "," then
       state_string = state_string:sub(1,state_string:len()-1)
     end
   return state_string.."}"
