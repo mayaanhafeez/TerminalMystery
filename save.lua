@@ -23,7 +23,7 @@ local function convert_state_to_string(state, template) --function taken from ht
     if type(v) == "table" then
       state_string = state_string..convert_state_to_string(v, sub_template)
     elseif type(v) == "string" then
-      state_string = state_string.."\""v"\""
+      state_string = state_string.."\""..v.."\""
     else
       state_string= state_string..tostring(v)
     end
@@ -38,18 +38,12 @@ local function convert_state_to_string(state, template) --function taken from ht
 end
 
 local function convert_string_to_state(string)
-  local state = {}
-  for str in string.gmatch(string, "([^".."%s".."]+)") do
-    state.insert(state, str)
-  end
-  return state
+  return load("return " .. string)()
 end
 
 local M = {}
 
 function M.save_state(state, filename)
---saves state: current_room, previous_room, visited, files_read, unlocked, elapsed, command_count
---writes them to a text file
   local state_string = convert_state_to_string(state, save_template)
   local successs, message = love.filesystem.write(filename, state_string)
   if not successs then
@@ -58,8 +52,6 @@ function M.save_state(state, filename)
 end
 
 function M.load_state(filename)
---reads file extracts state, validates state. returns nil on failed validation or other error.
---returns state
   if not love.filesystem.getInfo(filename) then
     return nil
   else
@@ -75,7 +67,6 @@ function M.load_state(filename)
 end
 
 function M.has_save(filename)
---checks if save file exists
   if love.filesystem.getInfo(filename) ~= nil then
     return true
   else
@@ -84,7 +75,6 @@ function M.has_save(filename)
 end
 
 function M.delete_save(filename)
---if save file exists delete it.
   if M.has_save(filename) then
     love.filesystem.remove(filename)
   end
