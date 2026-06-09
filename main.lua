@@ -7,6 +7,7 @@ local World = require("world")
 local Commands = require("commands")
 local Render = require("render")
 local Completion = require("commands.completion")
+local Save = require("save")
 
 local state -- game state from World.new_state()
 local term -- terminal UI state (input/lines/scroll/history)
@@ -127,6 +128,9 @@ local function init_game()
 	push_text(World.rooms.foyer.description, "output")
 	push_text("", "output")
 	best = load_best()
+
+  Save.save_state(state, "save_state.lua")
+  print(Save.load_state("save_state.lua"))
 end
 
 -- ---------- LÖVE callbacks ----------
@@ -344,3 +348,4 @@ function love.mousepressed(x, y, button)
 		end
 	end
 end
+
