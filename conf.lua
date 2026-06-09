@@ -7,7 +7,7 @@ function love.conf(t)
 	t.window.resizable = true
 	t.window.minwidth = 800
 	t.window.minheight = 500
-	t.window.vsync = 1
+	t.window.vsync = 0
 	t.console = false
 	-- We don't use these modules; trim them so the love runtime stays light.
 	t.modules.joystick = false

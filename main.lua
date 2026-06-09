@@ -149,6 +149,11 @@ function love.update(dt)
 end
 
 function love.draw()
+	local w, h = love.graphics.getDimensions()
+	if w ~= Render.W or h ~= Render.H then
+		Render.resize(w, h)
+		rewrap_terminal()
+	end
 	Render.draw(state, term, best)
 end
 
