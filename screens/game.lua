@@ -1,4 +1,5 @@
 local World = require("world")
+local utf8 = require("utf8")
 local Commands = require("commands")
 local Render = require("render")
 local Completion = require("commands.completion")
@@ -141,7 +142,9 @@ local function execute_input()
 	push_text("", "output")
 end
 
-function love.update(dt)
+local M = {}
+
+function M.update(dt)
 	if state.start_time and not state.won then
 		state.elapsed = love.timer.getTime() - state.start_time
 	end
@@ -150,9 +153,12 @@ function love.update(dt)
 		cursor_timer = 0
 		term.cursor_visible = not term.cursor_visible
 	end
+  if state.exit_requested then
+    Screen.set("save_prompt")
+  end
 end
 
-function love.draw()
+function M.draw()
 	local w, h = love.graphics.getDimensions()
 	if w ~= Render.W or h ~= Render.H then
 		Render.resize(w, h)
@@ -161,13 +167,7 @@ function love.draw()
 	Render.draw(state, term, best)
 end
 
-function love.resize(w, h)
-	Render.resize(w, h)
-	rewrap_terminal()
-end
-
-
-function love.textinput(t)
+function M.text_input(t)
 	if state.popup_item then
 		return
 	end
@@ -183,7 +183,7 @@ function love.textinput(t)
 	term.cursor_visible = true
 end
 
-function love.keypressed(key)
+function M.keypressed(key)
 	if state.popup_item then
 		if key == "escape" then
 			state.popup_item = nil
@@ -193,7 +193,7 @@ function love.keypressed(key)
 	-- win screen: only R
 	if state.won then
 		if key == "r" then
-			init_game()
+      M.start_new()
 		end
 		return
 	end
@@ -301,7 +301,7 @@ function love.keypressed(key)
 	end
 end
 
-function love.mousepressed(x, y, button)
+function M.mousepressed(x, y, button)
 	if button == 1 and state.popup_item and Render.popup_close_rect then
 		local r = Render.popup_close_rect
 		if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
@@ -309,8 +309,6 @@ function love.mousepressed(x, y, button)
 		end
 	end
 end
-
-local M = {}
 
 function M.start_new()
 	state = World.new_state()
@@ -330,9 +328,15 @@ function M.start_new()
 	push_text(World.rooms.foyer.description, "output")
 	push_text("", "output")
 	best = load_best()
-
-  Save.save_state(state, "save_state.lua")
-  print(Save.load_state("save_state.lua"))
+  M.state = state
 end
 
+function M.start_from_save(save_data)
+  --copy from save_data into state
+  --does stuff
+  M.state = state
+end
+
+
+M.resize = rewrap_terminal
 return M

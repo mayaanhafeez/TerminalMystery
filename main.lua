@@ -4,8 +4,9 @@
 
 Screen = require("screen")
 GameScreen = require("screens/game")
+Render = require("render")
 
-Screen.register(GameScreen)
+Screen.register("game", GameScreen)
 
 
 function love.load()
@@ -15,9 +16,27 @@ function love.load()
   Screen.set("game")
 end
 
--- ---------- save file ----------
+function love.resize(w, h)
+  Render.resize(w, h)
+  GameScreen.resize(w, h)
+end
 
+function love.update(dt)
+  Screen.update(dt)
+end
 
+function love.draw()
+  Screen.draw()
+end
 
--- ---------- LÖVE callbacks ----------
+function love.keypressed(k)
+  Screen.keypressed(k)
+end
 
+function love.mousepressed(x, y, button)
+  Screen.mousepressed(x, y, button)
+end
+
+function love.textinput(t)
+  Screen.text_input(t)
+end
