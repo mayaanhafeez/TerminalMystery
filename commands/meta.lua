@@ -1,6 +1,7 @@
 -- meta.lua — help, echo, exit, accuse
 
 local World = require("world")
+local Screen = require("screen")
 
 local function help(state, _)
     local lines = {
@@ -47,7 +48,7 @@ local function echo(_, args)
 end
 
 local function exit(_, _)
-    love.event.quit()
+  Screen.set("play")
     return ""
 end
 
