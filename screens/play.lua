@@ -50,6 +50,14 @@ function M.draw()
     M.load_buttons()
   end
   love.graphics.clear(0,0,0,1)
+  local title = "Terminal Mystery"
+  local title_font = love.graphics.newFont(32)
+  local old_font = love.graphics.getFont()
+  love.graphics.setFont(title_font)
+  local text_position = {x = center.x - title_font:getWidth(title) /2, y= (center.y - 200) - title_font:getHeight() /2}
+  love.graphics.setColor(1,1,1)
+  love.graphics.print("Terminal Mystery", text_position.x, text_position.y)
+  love.graphics.setFont(old_font)
   for _, button in ipairs(M.buttons) do
     draw_button(button)
   end
