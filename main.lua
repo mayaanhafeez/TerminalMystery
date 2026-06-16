@@ -5,11 +5,12 @@
 Screen = require("screen")
 GameScreen = require("screens/game")
 PlayScreen = require("screens/play")
+PlayMenuScreen = require("screens/play_menu")
 Render = require("render")
 
 Screen.register("play", PlayScreen)
 Screen.register("game", GameScreen)
-
+Screen.register("play_menu", PlayMenuScreen)
 
 function love.load()
 	love.keyboard.setKeyRepeat(true)

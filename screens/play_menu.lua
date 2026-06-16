@@ -1,3 +1,4 @@
+Save = require("save")
 Screen = require("screen")
 Render = require("render")
 
@@ -8,6 +9,14 @@ local screen_size = {w = 500, h = 500}
 local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*aspect_ratio}
 
 local M = {}
+--place holder functions
+local function load_from_save()
+  Screen.set("game")
+end
+
+local function start_new_game()
+  Screen.set("game")
+end
 
 local function get_button_position(wanted_x, wanted_y, this_button_size)
   -- converts given center position to top left corner
@@ -50,14 +59,6 @@ function M.draw()
     M.load_buttons()
   end
   love.graphics.clear(0,0,0,1)
-  local title = "Terminal Mystery"
-  local title_font = love.graphics.newFont(32)
-  local old_font = love.graphics.getFont()
-  love.graphics.setFont(title_font)
-  local text_position = {x = center.x - title_font:getWidth(title) /2, y= (center.y - 200) - title_font:getHeight() /2}
-  love.graphics.setColor(1,1,1)
-  love.graphics.print("Terminal Mystery", text_position.x, text_position.y)
-  love.graphics.setFont(old_font)
   for _, button in ipairs(M.buttons) do
     draw_button(button)
   end
@@ -72,8 +73,9 @@ end
 
 function M.load_buttons()
   M.buttons = {
-    {label = "play", size = button_size, position = get_button_position(center.x, center.y, button_size), action = function() Screen.set("play_menu") end},
-    {label = "exit", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() love.event.quit() end},
+    {label = "Continue From Save", size = button_size, position = get_button_position(center.x, center.y - button_size.h/2 - padding, button_size), action = function() load_from_save() end},
+    {label = "New Game", size = button_size, position = get_button_position(center.x, center.y , button_size), action = function() start_new_game() end},
+    {label = "Back", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() Screen.set("play") end},
   }
 end
 
