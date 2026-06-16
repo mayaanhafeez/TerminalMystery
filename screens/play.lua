@@ -1,5 +1,7 @@
 Screen = require("screen")
 Render = require("render")
+Save = require("save")
+World = require("world")
 
 local aspect_ratio = 0.2
 local padding = 80
@@ -8,6 +10,10 @@ local screen_size = {w = 500, h = 500}
 local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*aspect_ratio}
 
 local M = {}
+local function exit()
+  Save.save_state(World.state, "save_data.txt")
+  love.event.quit()
+end
 
 local function get_button_position(wanted_x, wanted_y, this_button_size)
   -- converts given center position to top left corner
@@ -73,7 +79,7 @@ end
 function M.load_buttons()
   M.buttons = {
     {label = "play", size = button_size, position = get_button_position(center.x, center.y, button_size), action = function() Screen.set("play_menu") end},
-    {label = "exit", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() love.event.quit() end},
+    {label = "exit", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() exit() end},
   }
 end
 

@@ -7,11 +7,11 @@ local padding = 80
 local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
 local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*aspect_ratio}
-
+local save_data = nil
 local M = {}
 --place holder functions
 local function load_from_save()
-  Screen.set("game")
+  save_data = Save.load_state("save_data.txt")
 end
 
 local function start_new_game()
@@ -39,7 +39,11 @@ end
 local function draw_button(button)
   local button_position = button.position
   local this_button_size = button.size
-  love.graphics.setColor(1,1,1)
+  if save_data == nil and button.label == "Continue From Save" then
+    love.graphics.setColor(0.5,0.5,0.5)
+  else
+    love.graphics.setColor(1,1,1)
+  end
   love.graphics.rectangle("fill", button_position.x, button_position.y, this_button_size.w, this_button_size.h, 5)
   local label = button.label
   local font = love.graphics.getFont()
@@ -49,6 +53,10 @@ local function draw_button(button)
 end
 
 M.buttons = {}
+
+function M.enter()
+  save_data = Save.load_state("save_data.txt")
+end
 
 function M.draw()
   --get screen middle
