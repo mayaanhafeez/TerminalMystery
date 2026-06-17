@@ -23,7 +23,9 @@ local function add_world_items(state, filename)
         id = item.id,
         filename = filename,
         room = item.room,
-        copied = item.copied
+        copied = item.copied,
+        x = item.x,
+        y = item.y
       }
     end
   end

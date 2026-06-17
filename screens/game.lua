@@ -331,8 +331,36 @@ function M.start_new()
 end
 
 function M.start_from_save(save_data)
-  --copy from save_data into state
-  --does stuff
+  state = World.new_state()
+
+  state.current_room = save_data.current_room
+  state.previous_room = save_data.previous_room
+  state.visited = save_data.visited
+  state.files_read = save_data.files_read
+  state.unlocked = save_data.unlocked
+  state.destroyed = save_data.destroyed
+  state.elapsed = save_data.elapsed
+  state.command_count = save_data.command_count
+  state.start_time = love.timer.getTime() - state.elapsed
+
+  World.restore_rooms(save_data.rooms)
+
+  term = {
+    messages = {},
+    lines = {},
+    input = "",
+    scroll = 0,
+    cursor_visible = true,
+    history = {},
+    history_index = nil,
+    tab_candidates = nil,
+    tab_index = nil,
+  }
+  push_text("=== GAME RESTORED ===", "system")
+  push_text("", "output")
+  push_text(World.rooms[state.current_room].description, "output")
+  push_text("", "output")
+  best = load_best()
   M.state = state
 end
 

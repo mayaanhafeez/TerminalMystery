@@ -12,6 +12,10 @@ local M = {}
 --place holder functions
 local function load_from_save()
   save_data = Save.load_state("save_data.txt")
+  if save_data then
+    GameScreen.start_from_save(save_data)
+    Screen.set("game")
+  end
 end
 
 local function start_new_game()

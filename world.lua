@@ -373,4 +373,29 @@ function M.new_state()
 	}
 end
 
+function M.restore_rooms(saved_rooms)
+  if not saved_rooms then return end
+  for room_id, saved_room in pairs(saved_rooms) do
+    local room = M.rooms[room_id]
+    if room then
+      room.items = {}
+      if saved_room.mode then room.mode = saved_room.mode end
+      for filename, stub in pairs(saved_room.items) do
+        local reg = Items.registry[stub.id]
+        if reg then
+          local item = {}
+          for k, v in pairs(reg) do item[k] = v end
+            item.id = stub.id
+            item.filename = filename
+            item.room = stub.room
+            item.copied = stub.copied
+            item.x = stub.x
+            item.y = stub.y
+            room.items[filename] = item
+        end
+      end
+    end
+  end
+end
+
 return M
