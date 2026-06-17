@@ -11,7 +11,7 @@ local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*
 
 local M = {}
 local function exit()
-  Save.save_state(World.state, "save_data.txt")
+  Save.save_state(GameScreen.state, "save_data.txt")
   love.event.quit()
 end
 

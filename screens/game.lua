@@ -3,7 +3,6 @@ local utf8 = require("utf8")
 local Commands = require("commands")
 local Render = require("render")
 local Completion = require("commands.completion")
-local Save = require("save")
 local Screen = require("screen")
 
 local state

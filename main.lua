@@ -7,6 +7,7 @@ GameScreen = require("screens/game")
 PlayScreen = require("screens/play")
 PlayMenuScreen = require("screens/play_menu")
 Render = require("render")
+World = require("world")
 
 Screen.register("play", PlayScreen)
 Screen.register("game", GameScreen)

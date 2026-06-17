@@ -15,6 +15,7 @@ local function load_from_save()
 end
 
 local function start_new_game()
+  GameScreen.start_new()
   Screen.set("game")
 end
 
