@@ -187,40 +187,43 @@ hastily shoved between it and the wall.]],
 -- Normalize raw definitions into M.rooms.
 -- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
 -- Each item gets: id, filename, room, plus any fields from the definition.
-M.rooms = {}
-for id, def in pairs(raw) do
-	local room = {
-		id = id,
-		name = def.name or (id:sub(1, 1):upper() .. id:sub(2)),
-		parent = def.parent,
-		hidden = def.hidden,
-		description = def.description,
-		wall = def.wall,
-		floor = def.floor,
-		floor_tint = def.floor_tint,
-		rug = def.rug,
-		furniture = def.furniture,
-		items = {},
-	}
-	for _, placement in ipairs(def.items or {}) do
-		local reg = Items.registry[placement.ref]
-		if reg then
-			local item = {}
-			for k, v in pairs(reg) do
-				item[k] = v
-			end
-			item.id = placement.ref
-			item.filename = reg.filename or (placement.ref .. ".txt")
-			item.x = placement.x
-			item.y = placement.y
-			item.room = id
-			room.items[item.filename] = item
-		end
-	end
-	M.rooms[id] = room
+local function build_rooms()
+  M.rooms = {}
+  for id, def in pairs(raw) do
+    local room = {
+      id = id,
+      name = def.name or (id:sub(1, 1):upper() .. id:sub(2)),
+      parent = def.parent,
+      hidden = def.hidden,
+      description = def.description,
+      wall = def.wall,
+      floor = def.floor,
+      floor_tint = def.floor_tint,
+      rug = def.rug,
+      furniture = def.furniture,
+      items = {},
+    }
+    for _, placement in ipairs(def.items or {}) do
+      local reg = Items.registry[placement.ref]
+      if reg then
+        local item = {}
+        for k, v in pairs(reg) do
+          item[k] = v
+        end
+        item.id = placement.ref
+        item.filename = reg.filename or (placement.ref .. ".txt")
+        item.x = placement.x
+        item.y = placement.y
+        item.room = id
+        room.items[item.filename] = item
+      end
+    end
+    M.rooms[id] = room
+  end
 end
-
 -- Returns the IDs of rooms directly reachable from room_id (parent + children).
+build_rooms()
+
 function M.get_exits(room_id)
 	local exits = {}
 	local parent = M.rooms[room_id].parent
@@ -335,6 +338,7 @@ end
 
 -- Build a fresh game state.
 function M.new_state()
+  build_rooms()
 	return {
 		current_room = "foyer",
 		previous_room = "foyer",
