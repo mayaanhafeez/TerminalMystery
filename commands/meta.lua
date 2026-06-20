@@ -47,9 +47,14 @@ local function echo(_, args)
     return table.concat(args, " ")
 end
 
-local function exit(_, _)
+local function exit(_, args)
+  if #args == 0 then
+    return "To save type 'exit save'. To abdandon progress type 'exit nosave'"
+  elseif args[1] == "save" then
+    Save.save_state(GameScreen.state, "save_data.txt")
+  end
   Screen.set("play")
-    return ""
+  return ""
 end
 
 local function accuse(state, args)
