@@ -8,6 +8,8 @@ require("test.test_world")
 require("test.test_completion")
 require("test.test_navigation")
 require("test.test_items")
+require("test.test_screen")
+require("test.test_save")
 
 local T = require("test.runner")
 T.summary()
