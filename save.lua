@@ -89,7 +89,6 @@ function M.load_state(filename)
     if not state_string then
       return nil
     elseif M.validate_save(state_string) then
-        print(state_string)
         return convert_string_to_state(state_string)
       else
         return nil
