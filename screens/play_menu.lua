@@ -8,8 +8,14 @@ local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
 local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*aspect_ratio}
 local save_data = nil
+
+local function get_button_size()
+  return button_size
+end
+
 local M = {}
---place holder functions
+
+
 local function load_from_save()
   save_data = Save.load_state("save_data.txt")
   if save_data then
@@ -33,7 +39,7 @@ local function button_selected()
   local x,y = love.mouse.getPosition()
   for _, my_button in ipairs(M.buttons) do
     local this_button_size = my_button.size
-    local button_position = my_button.position
+    local button_position = get_button_position(my_button.position.x, my_button.position.y, this_button_size)
     if x > button_position.x and x< (button_position.x + this_button_size.w) and y > button_position.y and y<(button_position.y + this_button_size.h) then
       return my_button
     end
@@ -41,13 +47,16 @@ local function button_selected()
   return nil
 end
 
-local function draw_button(button)
-  local button_position = button.position
-  local this_button_size = button.size
+local function draw_button(button, color, this_button_size, button_position)
+  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
+  local color1= color[1]
+  local color2= color[2]
+  local color3= color[3]
+
   if save_data == nil and button.label == "Continue From Save" then
     love.graphics.setColor(0.5,0.5,0.5)
   else
-    love.graphics.setColor(1,1,1)
+    love.graphics.setColor(color1,color2,color3)
   end
   love.graphics.rectangle("fill", button_position.x, button_position.y, this_button_size.w, this_button_size.h, 5)
   local label = button.label
@@ -73,7 +82,18 @@ function M.draw()
   end
   love.graphics.clear(0,0,0,1)
   for _, button in ipairs(M.buttons) do
-    draw_button(button)
+    local this_button_size = {w = button.size.w,h= button.size.h}
+    if (button_selected()) then
+      if (button.label == button_selected().label) then
+        this_button_size = {w =this_button_size.w * 1.03, h =this_button_size.h *1.03}
+        draw_button(button,{0.67,0.67,0.67},this_button_size, button.position)
+        this_button_size = {w = button.size.w,h= button.size.h}
+      else
+        draw_button(button, {1,1,1}, this_button_size, button.position)
+      end
+    else
+      draw_button(button, {1,1,1}, this_button_size, button.position)
+    end
   end
 end
 
@@ -86,9 +106,9 @@ end
 
 function M.load_buttons()
   M.buttons = {
-    {label = "Continue From Save", size = button_size, position = get_button_position(center.x, center.y - button_size.h/2 - padding, button_size), action = function() load_from_save() end},
-    {label = "New Game", size = button_size, position = get_button_position(center.x, center.y , button_size), action = function() start_new_game() end},
-    {label = "Back", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() Screen.set("play") end},
+    {label = "Continue From Save", size = get_button_size(), position = {x=center.x, y= center.y - button_size.h/2 - padding}, action = function() load_from_save() end},
+    {label = "New Game", size = get_button_size() , position = {x=center.x, y= center.y}, action = function() start_new_game() end},
+    {label = "Back", size = get_button_size(), position = {x=center.x, y= center.y + padding + (button_size.h/2)}, action = function() Screen.set("play") end},
   }
 end
 
