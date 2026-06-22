@@ -14,6 +14,10 @@ local function exit()
   love.event.quit()
 end
 
+local function get_button_size()
+  return button_size
+end
+
 local function get_button_position(wanted_x, wanted_y, this_button_size)
   -- converts given center position to top left corner
   local actual_position = {x = wanted_x - this_button_size.w/2, y = wanted_y - this_button_size.h/2}
@@ -24,7 +28,7 @@ local function button_selected()
   local x,y = love.mouse.getPosition()
   for _, my_button in ipairs(M.buttons) do
     local this_button_size = my_button.size
-    local button_position = my_button.position
+    local button_position = get_button_position(my_button.position.x, my_button.position.y, this_button_size)
     if x > button_position.x and x< (button_position.x + this_button_size.w) and y > button_position.y and y<(button_position.y + this_button_size.h) then
       return my_button
     end
@@ -32,10 +36,12 @@ local function button_selected()
   return nil
 end
 
-local function draw_button(button)
-  local button_position = button.position
-  local this_button_size = button.size
-  love.graphics.setColor(1,1,1)
+local function draw_button(button, color, this_button_size, button_position)
+  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
+  local color1 = color[1]
+  local color2 = color[2]
+  local color3 = color[3]
+  love.graphics.setColor(color1,color2,color3)
   love.graphics.rectangle("fill", button_position.x, button_position.y, this_button_size.w, this_button_size.h, 5)
   local label = button.label
   local font = love.graphics.getFont()
@@ -64,7 +70,18 @@ function M.draw()
   love.graphics.print("Terminal Mystery", text_position.x, text_position.y)
   love.graphics.setFont(old_font)
   for _, button in ipairs(M.buttons) do
-    draw_button(button)
+    local this_button_size = {w = button.size.w,h= button.size.h}
+    if (button_selected()) then
+      if (button.label == button_selected().label) then
+        this_button_size = {w =this_button_size.w * 1.03, h =this_button_size.h *1.03}
+        draw_button(button,{0.67,0.67,0.67},this_button_size, button.position)
+        this_button_size = {w = button.size.w,h= button.size.h}
+      else
+        draw_button(button, {1,1,1}, this_button_size, button.position)
+      end
+    else
+      draw_button(button, {1,1,1}, this_button_size, button.position)
+    end
   end
 end
 
@@ -77,8 +94,8 @@ end
 
 function M.load_buttons()
   M.buttons = {
-    {label = "play", size = button_size, position = get_button_position(center.x, center.y, button_size), action = function() Screen.set("play_menu") end},
-    {label = "exit", size = button_size, position = get_button_position(center.x, center.y + padding + (button_size.h/2) , button_size), action = function() exit() end},
+    {label = "play", size = get_button_size(), position = {x=center.x, y=center.y}, action = function() Screen.set("play_menu") end},
+    {label = "exit", size = get_button_size(), position = {x=center.x, y=center.y + padding + (button_size.h/2)}, action = function() exit() end},
   }
 end
 
