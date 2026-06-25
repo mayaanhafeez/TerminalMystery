@@ -104,6 +104,41 @@ function M.mousepressed(_, _, mouse_button)
   end
 end
 
+local function get_button_index(button)
+  M.load_buttons()
+  for i,k in ipairs(M.buttons) do
+    if k.label == button.label then
+      return i
+    end
+  end
+end
+
+function M.keypressed(key)
+  M.load_buttons()
+  local current_button = button_selected()
+  if current_button == nil then
+    if key == "down" or key == "up" then
+      love.mouse.setPosition(M.buttons[1].position.x, M.buttons[1].position.y)
+    end
+  else
+    local index = get_button_index(current_button)
+    if key == "down" then
+      index = index + 1
+    elseif key == "up" then
+      index = index - 1
+    end
+    if index >= 1 and index <= #M.buttons then
+      love.mouse.setPosition(M.buttons[index].position.x, M.buttons[index].position.y)
+    end
+    end
+  if key == "return" and current_button then
+    current_button.action()
+  end
+  if key == "escape" then
+    M.buttons[3].action()
+  end
+end
+
 function M.load_buttons()
   M.buttons = {
     {label = "Continue From Save", size = get_button_size(), position = {x=center.x, y= center.y - button_size.h/2 - padding}, action = function() load_from_save() end},
