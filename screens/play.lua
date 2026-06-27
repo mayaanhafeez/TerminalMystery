@@ -61,10 +61,16 @@ function M.draw()
     M.load_buttons()
   end
   love.graphics.clear(0,0,0,1)
+  local img = love.graphics.newImage("assets/sprites/floor/foyer.png")
+  img:setWrap("repeat", "repeat")
+  local iw, ih = img:getDimensions()
+  local quad = love.graphics.newQuad(0,0, cw, ch, iw, ih)
+  love.graphics.setColor(1,1,1,1)
+  love.graphics.draw(img, quad, 0,0)
   local title = "Terminal Mystery"
-  local title_font = love.graphics.newFont(32)
   local old_font = love.graphics.getFont()
-  love.graphics.setFont(title_font)
+  love.graphics.setFont(Render.font_handwriting_large)
+  local title_font = love.graphics.getFont()
   local text_position = {x = center.x - title_font:getWidth(title) /2, y= (center.y - 200) - title_font:getHeight() /2}
   love.graphics.setColor(1,1,1)
   love.graphics.print("Terminal Mystery", text_position.x, text_position.y)
@@ -126,8 +132,8 @@ end
 
 function M.load_buttons()
   M.buttons = {
-    {label = "play", size = get_button_size(), position = {x=center.x, y=center.y}, action = function() Screen.set("play_menu") end},
-    {label = "exit", size = get_button_size(), position = {x=center.x, y=center.y + padding + (button_size.h/2)}, action = function() exit() end},
+    {label = "Play", size = get_button_size(), position = {x=center.x, y=center.y}, action = function() Screen.set("play_menu") end},
+    {label = "Exit", size = get_button_size(), position = {x=center.x, y=center.y + padding + (button_size.h/2)}, action = function() exit() end},
   }
 end
 

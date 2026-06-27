@@ -94,6 +94,7 @@ M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
 M.font_big = nil
 M.font_small = nil -- used for minimap labels
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
+M.font_handwriting_large = nil -- large variant for titles
 M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
 M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
@@ -150,6 +151,7 @@ local function load_fixed_fonts()
 	end
 	if love.filesystem.getInfo("handwriting.ttf") then
 		M.font_handwriting = love.graphics.newFont("handwriting.ttf", 16)
+		M.font_handwriting_large = love.graphics.newFont("handwriting.ttf", 48)
 	end
 end
 
