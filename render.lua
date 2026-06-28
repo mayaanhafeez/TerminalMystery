@@ -100,6 +100,7 @@ M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
+M.tile_cache = {}
 M.room_sprites = {} -- name     -> Image (furniture / rug sprites)
 
 local TILE_PATH = "assets/kenney_tiny-dungeon/Tiles/"
@@ -128,6 +129,20 @@ local function load_img(path, filter)
 		img:setFilter(filter or "linear", filter or "linear")
 	end
 	return ok and img or nil
+end
+
+local function get_tile(path)
+  if M.tile_cache[path] then
+    return M.tile_cache[path]
+  else
+    local img = load_img(path, "nearest")
+    if img == nil then
+      M.title_cache[path] = false
+    else
+      M.title_cache[path] = img
+    end
+    return M.tile_cache[path]
+  end
 end
 
 local function load_terminal_font()
