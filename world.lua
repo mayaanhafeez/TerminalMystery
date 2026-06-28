@@ -72,8 +72,7 @@ beside it, in Lord Ashworth's own hand.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/sprites/floor/foyer.png",
-        ["W"] = "assets/sprites/floor/library.png",
+        ["F"] = "assets/foyer-floor.png",
       },
       layers = {
         {
@@ -83,7 +82,7 @@ beside it, in Lord Ashworth's own hand.]],
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
-        "WWWWWWWWWWWW",
+        "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
