@@ -115,16 +115,24 @@ end
 
 function M.keypressed(key)
   M.load_buttons()
+  if key == "1" then
+    love.mouse.setPosition(M.buttons[1].position.x, M.buttons[1].position.y)
+  elseif key == "2" then
+      love.mouse.setPosition(M.buttons[2].position.x, M.buttons[2].position.y)
+  elseif key == "3" then
+      love.mouse.setPosition(M.buttons[3].position.x, M.buttons[3].position.y)
+  end
+
   local current_button = button_selected()
   if current_button == nil then
-    if key == "down" or key == "up" then
+    if key == "down" or key == "up" or key == "j" or key == "k" then
       love.mouse.setPosition(M.buttons[1].position.x, M.buttons[1].position.y)
     end
   else
     local index = get_button_index(current_button)
-    if key == "down" then
+    if key == "down" or key == "j" then
       index = index + 1
-    elseif key == "up" then
+    elseif key == "up" or key == "k" then
       index = index - 1
     end
     if index >= 1 and index <= #M.buttons then
