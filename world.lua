@@ -70,6 +70,32 @@ beside it, in Lord Ashworth's own hand.]],
 			{ ref = "welcome", x = 0.30, y = 0.35 },
 			{ ref = "guest_list", x = 0.65, y = 0.50 },
 		},
+    tiles = {
+      legend = {
+        ["F"] = "/assets/sprites/floor/foyer.png",
+        ["W"] = "/assets/sprites/floor/library.png",
+      },
+      layers = {
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "WWWWWWWWWWWW",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+        "FFFFFFFFFFFF",
+    },
 	},
 
 	library = {
@@ -192,6 +218,7 @@ local function build_rooms()
   for id, def in pairs(raw) do
     local room = {
       id = id,
+      tiles = def.tiles,
       name = def.name or (id:sub(1, 1):upper() .. id:sub(2)),
       parent = def.parent,
       hidden = def.hidden,

@@ -145,6 +145,7 @@ local function get_tile(path)
   end
 end
 
+
 local function load_terminal_font()
 	local size = math.max(6, math.floor((love.filesystem.getInfo("font.ttf") and 15 or 14) * M.font_scale + 0.5))
 	if love.filesystem.getInfo("font.ttf") then
@@ -492,6 +493,30 @@ local function draw_minimap(state, mx, my, mw, mh)
 	end
 end
 
+local function draw_grid_tiles(tiles, gx, gy, gw, gh)
+  if ~ tiles.layers then
+    return nil
+  elseif #tiles.layers[1] == 0 or #tiles.layers[1][1] == 0 then
+    return nil
+  else
+    local cols = #tiles.layers[1][1]
+    local rows = #tiles.layers[1]
+    local cell = math.min(gw/cols, gh/rows)
+    for _, layer in ipairs(tiles.layers) do
+      for row = 1, rows do
+        for col =1, cols do
+          local path = tiles.legend[layer[row]:sub(col, col)]
+          local img = get_tile(path)
+          if img then
+            love.graphics.setColor(1, 1, 1)
+            love.graphics.draw(img, gx + (col - 1) * cell, gy + (row - 1) * cell, 0, cell / img:getWidth(), cell / img:getHeight())
+          end
+        end
+      end
+    end
+  end
+end
+
 -- Draw the main 2D top-down room view. Renders into the room canvas at the
 -- fixed virtual resolution; coords are canvas-local (0..ROOM_VW, 0..ROOM_VH).
 local function draw_room_view(state)
@@ -499,7 +524,7 @@ local function draw_room_view(state)
 	local py = 0
 	local pw = ROOM_VW
 	local ph = ROOM_VH
-
+draw_grid_tiles()
 	local room_id = state.current_room
 	local room_def = World.rooms[room_id]
 	local wall = room_def.wall or { 0.18, 0.16, 0.20 }
