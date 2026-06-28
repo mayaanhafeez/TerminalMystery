@@ -137,9 +137,9 @@ local function get_tile(path)
   else
     local img = load_img(path, "nearest")
     if img == nil then
-      M.title_cache[path] = false
+      M.tile_cache[path] = false
     else
-      M.title_cache[path] = img
+      M.tile_cache[path] = img
     end
     return M.tile_cache[path]
   end
@@ -494,7 +494,7 @@ local function draw_minimap(state, mx, my, mw, mh)
 end
 
 local function draw_grid_tiles(tiles, gx, gy, gw, gh)
-  if ~ tiles.layers then
+  if not tiles.layers then
     return nil
   elseif #tiles.layers[1] == 0 or #tiles.layers[1][1] == 0 then
     return nil
@@ -524,7 +524,6 @@ local function draw_room_view(state)
 	local py = 0
 	local pw = ROOM_VW
 	local ph = ROOM_VH
-draw_grid_tiles()
 	local room_id = state.current_room
 	local room_def = World.rooms[room_id]
 	local wall = room_def.wall or { 0.18, 0.16, 0.20 }
@@ -544,63 +543,65 @@ draw_grid_tiles()
 	local fy = py + BORDER
 	local fw = pw - 2 * BORDER
 	local fh = ph - 2 * BORDER
+  if room_def.tiles then
+    draw_grid_tiles(room_def.tiles, px, py, pw, ph)
+  else
+    -- ---- tiled NES floor ----
+    local tile_px = 16 * NES_SCALE -- 48 px rendered tile
+    local floor_img = M.floor_tiles[room_id]
+    love.graphics.setScissor(fx, fy, fw, fh)
+    if floor_img then
+      love.graphics.setColor(1, 1, 1)
+      local ry = fy
+      while ry < fy + fh do
+        local rx = fx
+        while rx < fx + fw do
+          love.graphics.draw(floor_img, rx, ry, 0, NES_SCALE, NES_SCALE)
+          rx = rx + tile_px
+        end
+        ry = ry + tile_px
+      end
+      local t = room_def.floor_tint or { 0, 0, 0, 0 }
+      love.graphics.setColor(t[1], t[2], t[3], t[4])
+      love.graphics.rectangle("fill", fx, fy, fw, fh)
+    else
+      love.graphics.setColor(floor)
+      love.graphics.rectangle("fill", fx, fy, fw, fh)
+    end
+    love.graphics.setScissor()
 
-	-- ---- tiled NES floor ----
-	local tile_px = 16 * NES_SCALE -- 48 px rendered tile
-	local floor_img = M.floor_tiles[room_id]
-	love.graphics.setScissor(fx, fy, fw, fh)
-	if floor_img then
-		love.graphics.setColor(1, 1, 1)
-		local ry = fy
-		while ry < fy + fh do
-			local rx = fx
-			while rx < fx + fw do
-				love.graphics.draw(floor_img, rx, ry, 0, NES_SCALE, NES_SCALE)
-				rx = rx + tile_px
-			end
-			ry = ry + tile_px
-		end
-		local t = room_def.floor_tint or { 0, 0, 0, 0 }
-		love.graphics.setColor(t[1], t[2], t[3], t[4])
-		love.graphics.rectangle("fill", fx, fy, fw, fh)
-	else
-		love.graphics.setColor(floor)
-		love.graphics.rectangle("fill", fx, fy, fw, fh)
-	end
-	love.graphics.setScissor()
+    -- ---- rug ----
+    if room_def.rug then
+      local rug = M.room_sprites.rug
+      if rug then
+        local rw = fw * 0.54
+        local rs = rw / rug:getWidth()
+        local rh = rug:getHeight() * rs
+        love.graphics.setColor(1, 1, 1, 0.82)
+        love.graphics.draw(rug, fx + (fw - rw) / 2, fy + fh - rh - 10, 0, rs, rs)
+      end
+    end
 
-	-- ---- rug ----
-	if room_def.rug then
-		local rug = M.room_sprites.rug
-		if rug then
-			local rw = fw * 0.54
-			local rs = rw / rug:getWidth()
-			local rh = rug:getHeight() * rs
-			love.graphics.setColor(1, 1, 1, 0.82)
-			love.graphics.draw(rug, fx + (fw - rw) / 2, fy + fh - rh - 10, 0, rs, rs)
-		end
-	end
-
-	-- ---- back-wall furniture ----
-	local BANNER_H = M.font_big:getHeight() + M.PAD
-	local fur_y = fy + BANNER_H + 6
-	local furn = room_def.furniture
-	if furn then
-		love.graphics.setScissor(fx, fy, fw, fh)
-		for _, piece in ipairs(furn) do
-			local name, nx, max_h = piece[1], piece[2], piece[3]
-			local img = M.room_sprites[name]
-			if img then
-				local sc = max_h / img:getHeight()
-				local sw = img:getWidth() * sc
-				local dx = math.max(fx, math.min(fx + nx * fw - sw / 2, fx + fw - sw))
-				love.graphics.setColor(1, 1, 1)
-				love.graphics.draw(img, dx, fur_y, 0, sc, sc)
-			end
-		end
-		love.graphics.setScissor()
-	end
-
+  end
+    -- ---- back-wall furniture ----
+    local BANNER_H = M.font_big:getHeight() + M.PAD
+    local fur_y = fy + BANNER_H + 6
+    local furn = room_def.furniture
+    if furn then
+      love.graphics.setScissor(fx, fy, fw, fh)
+      for _, piece in ipairs(furn) do
+        local name, nx, max_h = piece[1], piece[2], piece[3]
+        local img = M.room_sprites[name]
+        if img then
+          local sc = max_h / img:getHeight()
+          local sw = img:getWidth() * sc
+          local dx = math.max(fx, math.min(fx + nx * fw - sw / 2, fx + fw - sw))
+          love.graphics.setColor(1, 1, 1)
+          love.graphics.draw(img, dx, fur_y, 0, sc, sc)
+        end
+      end
+      love.graphics.setScissor()
+    end
 	-- Inner shadow along top and left edges
 	love.graphics.setColor(0, 0, 0, 0.22)
 	love.graphics.setLineWidth(4)

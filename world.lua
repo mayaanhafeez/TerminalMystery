@@ -72,10 +72,11 @@ beside it, in Lord Ashworth's own hand.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "/assets/sprites/floor/foyer.png",
-        ["W"] = "/assets/sprites/floor/library.png",
+        ["F"] = "assets/sprites/floor/foyer.png",
+        ["W"] = "assets/sprites/floor/library.png",
       },
       layers = {
+        {
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
@@ -95,6 +96,7 @@ beside it, in Lord Ashworth's own hand.]],
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
         "FFFFFFFFFFFF",
+        }
     },
 	},
 
@@ -209,7 +211,7 @@ hastily shoved between it and the wall.]],
 		},
 	},
 }
-
+}
 -- Normalize raw definitions into M.rooms.
 -- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
 -- Each item gets: id, filename, room, plus any fields from the definition.
