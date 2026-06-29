@@ -17,7 +17,7 @@ function love.load()
 	love.keyboard.setKeyRepeat(true)
 	Render.load()
   GameScreen.start_new()
-  Screen.set("play")
+  Screen.set("game")
 end
 
 function love.resize(w, h)

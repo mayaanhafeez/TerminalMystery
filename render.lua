@@ -505,11 +505,31 @@ local function draw_grid_tiles(tiles, gx, gy, gw, gh)
     for _, layer in ipairs(tiles.layers) do
       for row = 1, rows do
         for col =1, cols do
-          local path = tiles.legend[layer[row]:sub(col, col)]
-          local img = get_tile(path)
-          if img then
-            love.graphics.setColor(1, 1, 1)
-            love.graphics.draw(img, gx + (col - 1) * cell, gy + (row - 1) * cell, 0, cell / img:getWidth(), cell / img:getHeight())
+          local e = tiles.legend[layer[row]:sub(col, col)]
+          local path
+          local w = 1
+          local h = 1
+          if type(e) == "table" then
+            w = e.w
+            h = e.h
+            path = e.path
+          else
+            path = e
+          end
+          if path then
+            local img = get_tile(path)
+            if img then
+              love.graphics.setColor(1, 1, 1)
+              local px = gx + (col-1) * cell
+              local py = gy + (row-1) * cell
+              if w < 0 then
+                px = gx + (col -1 + math.abs(w)) * cell
+              end
+              if h < 0 then
+                py = gy + (row -1 + math.abs(h)) * cell
+              end
+              love.graphics.draw(img, px, py , 0, (w*cell) / img:getWidth(), (h*cell) / img:getHeight())
+            end
           end
         end
       end
