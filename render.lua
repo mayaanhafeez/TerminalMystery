@@ -12,7 +12,9 @@ local M = {}
 -- without letterbox bars; the terminal takes whatever width is left over and
 -- reflows its text. Status bar spans the full window at the bottom.
 local ROOM_VW = 520
-local ROOM_VH = 772
+-- Height is a 2:3 multiple of the width (520 * 9/6) so the 6x9 tile grid fills
+-- the canvas exactly with square tiles — no bare strip along one edge.
+local ROOM_VH = 780
 local ROOM_ASPECT = ROOM_VW / ROOM_VH
 local MIN_TERM_W = 400
 
@@ -28,7 +30,7 @@ M.PAD = 14
 M.room_x = 760
 M.room_y = 0
 M.room_w = 520
-M.room_h = 772
+M.room_h = 780
 
 function M.resize(w, h)
 	M.W = w
@@ -553,10 +555,6 @@ local function draw_room_view(state)
 	love.graphics.setColor(wall)
 	love.graphics.rectangle("fill", px, py, pw, ph)
 
-	love.graphics.setColor(C.map_border)
-	love.graphics.setLineWidth(2)
-	love.graphics.line(px, py, px, py + ph)
-
 	-- ---- floor interior (inset 24 px) ----
 	local BORDER = 24
 	local fx = px + BORDER
@@ -622,24 +620,28 @@ local function draw_room_view(state)
       end
       love.graphics.setScissor()
     end
-	-- Inner shadow along top and left edges
-	love.graphics.setColor(0, 0, 0, 0.22)
-	love.graphics.setLineWidth(4)
-	love.graphics.line(fx, fy, fx + fw, fy)
-	love.graphics.line(fx, fy, fx, fy + fh)
+	-- Inner shadow along the inset-floor's top and left edges. Only for rooms
+	-- that use the inset floor; tile rooms fill the whole canvas, so the shadow
+	-- would just float over the tiles as a phantom border.
+	if not room_def.tiles then
+		love.graphics.setColor(0, 0, 0, 0.22)
+		love.graphics.setLineWidth(4)
+		love.graphics.line(fx, fy, fx + fw, fy)
+		love.graphics.line(fx, fy, fx, fy + fh)
+	end
 
-	-- ---- room name banner ----
+	-- ---- room name banner (full width, pinned to the top edge) ----
 	love.graphics.setColor(0, 0, 0, 0.52)
-	love.graphics.rectangle("fill", fx, fy, fw, BANNER_H, 3, 3)
+	love.graphics.rectangle("fill", px, py, pw, BANNER_H)
 	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
 	love.graphics.setLineWidth(1)
-	love.graphics.line(fx + 8, fy + BANNER_H, fx + fw - 8, fy + BANNER_H)
+	love.graphics.line(px + 8, py + BANNER_H, px + pw - 8, py + BANNER_H)
 
 	love.graphics.setFont(M.font_big)
 	love.graphics.setColor(C.status_text)
 	local rname = room_def.name
 	local rnw = M.font_big:getWidth(rname)
-	love.graphics.print(rname, px + (pw - rnw) / 2, fy + (BANNER_H - M.font_big:getHeight()) / 2)
+	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_big:getHeight()) / 2)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX

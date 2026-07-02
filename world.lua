@@ -112,6 +112,7 @@ beside it, in Lord Ashworth's own hand.]],
         },
     },
 	},
+	},
 
 	library = {
 		parent = "foyer",
@@ -223,7 +224,6 @@ hastily shoved between it and the wall.]],
 			{ ref = "clean_sword", x = 0.35, y = 0.55 },
 		},
 	},
-}
 }
 -- Normalize raw definitions into M.rooms.
 -- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
