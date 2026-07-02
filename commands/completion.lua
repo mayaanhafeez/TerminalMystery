@@ -153,7 +153,7 @@ function M.get_completions(state, input)
                 local room = World.rooms[exit_id]
                 if not room.hidden and not seen[room.name]
                     and room.name:lower():sub(1, #ip_lower) == ip_lower then
-                    table.insert(result, before .. path_so_far .. "/" .. room.name .. " ")
+                    table.insert(result, before .. path_so_far .. "/" .. room.name .. "/")
                     seen[room.name] = true
                 end
             end
@@ -165,7 +165,7 @@ function M.get_completions(state, input)
             for _, exit_id in ipairs(exits) do
                 local room = World.rooms[exit_id]
                 if not room.hidden and not seen[room.name] and matches(room.name) then
-                    table.insert(result, before .. room.name .. " ")
+                    table.insert(result, before .. room.name .. "/")
                     seen[room.name] = true
                 end
             end
