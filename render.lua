@@ -117,7 +117,10 @@ local ASSET_SPRITES = {
 	scroll = "assets/blank_scroll_01.png",
 	book = "assets/bookicon.png",
 	sword = "assets/kenney_tiny-dungeon/Tiles/tile_0104.png",
+	laptop = "assets/laptop.png",
 }
+
+M.slack_bg = nil -- Slack popup background (assets/slack-bg.png), loaded in M.load
 
 local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
 
@@ -202,13 +205,25 @@ function M.load()
 		end
 	end
 
-	-- Floor tiles (16×16 NES PNGs, one per room)
-	for _, room_id in ipairs({ "foyer", "library", "study", "conservatory", "cellar", "bedroom" }) do
-		local img = load_img("assets/sprites/floor/" .. room_id .. ".png", "nearest")
+	-- Floor tiles (16×16 NES PNGs). The Series C rooms reuse the manor floor
+	-- art from the room each one replaces; new rooms fall back to solid color.
+	local FLOOR_ASSET = {
+		foyer = "foyer",
+		home_office = "library",
+		den = "study",
+		sunroom = "conservatory",
+		cellar = "cellar",
+		garage = "bedroom",
+	}
+	for room_id, asset in pairs(FLOOR_ASSET) do
+		local img = load_img("assets/sprites/floor/" .. asset .. ".png", "nearest")
 		if img then
 			M.floor_tiles[room_id] = img
 		end
 	end
+
+	-- Slack popup background
+	M.slack_bg = load_img("assets/slack-bg.png", "nearest")
 
 	-- Furniture / rug sprites (2dpixx individual PNGs)
 	for _, name in ipairs({
@@ -727,7 +742,7 @@ local function draw_win_screen(state, best)
 	local lines = {}
 	table.insert(lines, { f = M.font_big, c = C.win_title, t = "CASE CLOSED" })
 	table.insert(lines, { f = M.font, c = C.win_text, t = "" })
-	table.insert(lines, { f = M.font, c = C.win_text, t = "You named the murderer: Dr. Reginald Croft." })
+	table.insert(lines, { f = M.font, c = C.win_text, t = "You named the murderer: " .. World.murderer .. "." })
 	table.insert(lines, { f = M.font, c = C.win_text, t = "" })
 
 	table.insert(lines, { f = M.font_big, c = C.win_text, t = "this run" })
@@ -786,7 +801,10 @@ local function draw_popup(state)
 	end
 
 	local item = state.popup_item
-	local sprite = item.sprite
+	-- Popup style is decoupled from the floor icon: an item may set `popup`
+	-- to pick a popup style (e.g. "slack") while keeping `sprite` for its
+	-- room-view icon.
+	local sprite = item.popup or item.sprite
 	local BTN_W = 130
 	local BTN_H = 34
 
@@ -916,6 +934,53 @@ local function draw_popup(state)
 		love.graphics.setColor(fr * 1.15, fg * 1.15, fb * 1.15)
 		love.graphics.rectangle("fill", btn_x, btn_y, BTN_W, BTN_H, 4, 4)
 		love.graphics.setColor(0.97, 0.90, 0.72)
+		love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
+		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
+	elseif sprite == "slack" then
+		-- Slack popup: the slack-bg pixel-art chrome scaled up, chat text drawn
+		-- into the message column. Falls back to a plain dark panel if the
+		-- background image failed to load.
+		local POP_W = 680
+		local POP_H = 425 -- 1.6 aspect, matching slack-bg.png (192×120)
+		local pop_x = (M.W - POP_W) / 2
+		local pop_y = (M.H - POP_H) / 2
+
+		love.graphics.setColor(0, 0, 0, 0.78)
+		love.graphics.rectangle("fill", 0, 0, M.W, M.H)
+
+		if M.slack_bg then
+			love.graphics.setColor(1, 1, 1)
+			love.graphics.draw(M.slack_bg, pop_x, pop_y, 0,
+				POP_W / M.slack_bg:getWidth(), POP_H / M.slack_bg:getHeight())
+		else
+			love.graphics.setColor(0.15, 0.11, 0.18)
+			love.graphics.rectangle("fill", pop_x, pop_y, POP_W, POP_H, 6, 6)
+		end
+
+		-- Message column (right of the purple sidebar, below the header bar).
+		local col_x = pop_x + POP_W * 0.30
+		local col_y = pop_y + POP_H * 0.20
+		local col_w = POP_W * 0.66
+		local col_h = POP_H * 0.60
+
+		-- Channel / DM title above the message column.
+		love.graphics.setColor(0.93, 0.93, 0.96)
+		love.graphics.print(item.channel or title, col_x, pop_y + POP_H * 0.07)
+
+		-- Dark backing so chat text stays legible over the pixel art.
+		love.graphics.setColor(0.10, 0.09, 0.13, 0.72)
+		love.graphics.rectangle("fill", col_x - 8, col_y - 6, col_w + 16, col_h + 12, 4, 4)
+
+		love.graphics.setScissor(col_x - 8, col_y - 6, col_w + 16, col_h + 12)
+		love.graphics.setColor(0.90, 0.91, 0.94)
+		love.graphics.printf(item.content, col_x, col_y, col_w, "left")
+		love.graphics.setScissor()
+
+		local btn_x = pop_x + (POP_W - BTN_W) / 2
+		local btn_y = pop_y + POP_H - BTN_H - 12
+		love.graphics.setColor(0.30, 0.16, 0.36)
+		love.graphics.rectangle("fill", btn_x, btn_y, BTN_W, BTN_H, 4, 4)
+		love.graphics.setColor(0.95, 0.92, 0.97)
 		love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
 		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
 	else

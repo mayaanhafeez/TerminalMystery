@@ -6,58 +6,55 @@ local Items = require("items")
 
 local M = {}
 
-M.title = "Ashworth Manor — October 14th, 1923"
+M.title = "Strictly.ai — Series C Launch, Oct 14"
 
 M.suspects = {
-	"Lady Vivienne Ashworth",
-	"Dr. Reginald Croft",
-	"Miss Eliza Hartwell",
-	"Captain Theodore Blackwood",
+	"Ayesha Raza",
+	"Wei Zhao",
+	"Priya Raghavan",
+	"Daniel Lin",
 }
 
-M.murderer = "Dr. Reginald Croft"
+M.murderer = "Daniel Lin"
 
 M.accuse_aliases = {
-	["croft"] = "Dr. Reginald Croft",
-	["dr croft"] = "Dr. Reginald Croft",
-	["dr. croft"] = "Dr. Reginald Croft",
-	["reginald"] = "Dr. Reginald Croft",
-	["reginald croft"] = "Dr. Reginald Croft",
-	["dr reginald croft"] = "Dr. Reginald Croft",
-	["dr. reginald croft"] = "Dr. Reginald Croft",
-	["vivienne"] = "Lady Vivienne Ashworth",
-	["lady vivienne"] = "Lady Vivienne Ashworth",
-	["vivienne ashworth"] = "Lady Vivienne Ashworth",
-	["lady vivienne ashworth"] = "Lady Vivienne Ashworth",
-	["lady ashworth"] = "Lady Vivienne Ashworth",
-	["eliza"] = "Miss Eliza Hartwell",
-	["hartwell"] = "Miss Eliza Hartwell",
-	["miss hartwell"] = "Miss Eliza Hartwell",
-	["eliza hartwell"] = "Miss Eliza Hartwell",
-	["miss eliza hartwell"] = "Miss Eliza Hartwell",
-	["theodore"] = "Captain Theodore Blackwood",
-	["blackwood"] = "Captain Theodore Blackwood",
-	["theodore blackwood"] = "Captain Theodore Blackwood",
-	["captain blackwood"] = "Captain Theodore Blackwood",
-	["captain theodore blackwood"] = "Captain Theodore Blackwood",
+	["lin"] = "Daniel Lin",
+	["daniel"] = "Daniel Lin",
+	["daniel lin"] = "Daniel Lin",
+	["dlin"] = "Daniel Lin",
+	["ayesha"] = "Ayesha Raza",
+	["raza"] = "Ayesha Raza",
+	["ayesha raza"] = "Ayesha Raza",
+	["araza"] = "Ayesha Raza",
+	["wei"] = "Wei Zhao",
+	["zhao"] = "Wei Zhao",
+	["wei zhao"] = "Wei Zhao",
+	["wzhao"] = "Wei Zhao",
+	["priya"] = "Priya Raghavan",
+	["raghavan"] = "Priya Raghavan",
+	["priya raghavan"] = "Priya Raghavan",
+	["praghavan"] = "Priya Raghavan",
 }
 
 -- Room definitions with inline items.
 -- Derived automatically unless overridden:
 --   room id   → the table key
 --   room name → capitalize first letter of id  (e.g. "foyer" → "Foyer")
---   item filename → id .. ".txt"             (e.g. "torn_letter" → "torn_letter.txt")
+--   item filename → id .. ".txt"             (e.g. "guest_list" → "guest_list.txt")
 local raw = {
 	foyer = {
-		description = [[The Foyer of Ashworth Manor.
+		name = "Entrance Hall",
+		description = [[The Entrance Hall of Trent Kessler's house in the hills.
 
-A grand chandelier hangs above polished marble. The mansion's
-four wings spread out from this central hall: a Library to the
-west, the master's Study to the east, a glass Conservatory
-to the north, and the Cellar door open to the south.
+Series C banners still hang from the balcony. Half the
+engineering org is somewhere in here or the rooms beyond:
+a Home Office to one side, the Den where Arjun was found,
+a Sunroom, the Garage, a Game Room, the Server Room, and the
+Wine Cellar down the stairs.
 
-A folded note rests on the side table. The guest list lies
-beside it, in Lord Ashworth's own hand.]],
+A note has been left on the entry table, weighed down by the
+printed guest list. A laptop sits open beside them, still
+logged into Slack.]],
 		wall = { 0.34, 0.30, 0.22 },
 		floor = { 0.72, 0.66, 0.50 },
 		floor_tint = { 0.88, 0.80, 0.58, 0.20 },
@@ -67,8 +64,9 @@ beside it, in Lord Ashworth's own hand.]],
 			{ "mirror", 0.72, 215 },
 		},
 		items = {
-			{ ref = "welcome", x = 0.30, y = 0.35 },
-			{ ref = "guest_list", x = 0.65, y = 0.50 },
+			{ ref = "welcome", x = 0.22, y = 0.30 },
+			{ ref = "guest_list", x = 0.55, y = 0.45 },
+			{ ref = "slack_general", x = 0.82, y = 0.62 },
 		},
     tiles = {
       legend = {
@@ -114,14 +112,17 @@ beside it, in Lord Ashworth's own hand.]],
 	},
 	},
 
-	library = {
+	home_office = {
 		parent = "foyer",
-		description = [[The Library.
+		name = "Home Office",
+		description = [[The Home Office.
 
-Floor-to-ceiling oak shelves rise to a coffered ceiling. The
-fire in the grate has burnt low. A reading chair sits near the
-window, beside it a small writing table where someone has
-recently been working — a torn sheet of paper lies upon it.]],
+Trent's personal workspace — a standing desk, a wall of monitors,
+a beanbag in the corner. Daniel says he was in here alone all
+night, "grinding a Balatro run."
+
+A desktop is still awake, an unsent email glowing on the screen.
+A terminal window shows a list of recently-cloned repos.]],
 		wall = { 0.12, 0.16, 0.10 },
 		floor = { 0.28, 0.22, 0.14 },
 		floor_tint = { 0.04, 0.16, 0.04, 0.50 },
@@ -132,21 +133,23 @@ recently been working — a torn sheet of paper lies upon it.]],
 			{ "shelf_empty", 0.86, 205 },
 		},
 		items = {
-			{ ref = "torn_letter", x = 0.35, y = 0.60 },
-			{ ref = "bookshelf_log", x = 0.70, y = 0.35 },
+			{ ref = "draft_email", x = 0.35, y = 0.55 },
+			{ ref = "repo_log", x = 0.70, y = 0.35 },
+			{ ref = "cipher_note", x = 0.55, y = 0.72 },
 		},
 	},
 
-	study = {
+	den = {
 		parent = "foyer",
-		description = [[The Study.
+		name = "The Den",
+		description = [[The Den. This is where it happened.
 
-This is where it happened. Lord Ashworth's body has been
-covered with a sheet. A brandy glass rests where it fell.
-The room smells of pipe tobacco and something sweeter —
-something almost floral.
+A home theater, deep couches, the remains of the launch demo
+still on the big screen. Arjun Mehta's body has been covered.
+A half-finished bottle of kombucha sits on the side table.
 
-The desk is strewn with papers; a leather diary lies open.]],
+The AV rack hums against the back wall. Behind it, the door to
+a service closet stands very slightly ajar.]],
 		wall = { 0.16, 0.14, 0.18 },
 		floor = { 0.36, 0.30, 0.26 },
 		floor_tint = { 0.20, 0.14, 0.26, 0.35 },
@@ -156,27 +159,33 @@ The desk is strewn with papers; a leather diary lies open.]],
 		},
 		items = {
 			{ ref = "victim", x = 0.50, y = 0.40 },
-			{ ref = "alibi_notes", x = 0.25, y = 0.65 },
-			{ ref = "desk_diary", x = 0.70, y = 0.55 },
+			{ ref = "party_statements", x = 0.25, y = 0.65 },
+			{ ref = "calendar_note", x = 0.70, y = 0.60 },
 		},
 	},
 
 	[".closet"] = {
-		parent = "study",
+		parent = "den",
 		hidden = true,
-		description = [[A hidden closet behind a bookshelf. {WIP}]],
-		items = {},
+		description = [[A cramped AV / network closet behind the home-theater rack.
+
+Cable spaghetti, a patch panel, and a wastebasket. Something
+was crumpled up and dropped in the corner in a hurry.]],
+		items = {
+			{ ref = "draft_email_continued", x = 0.50, y = 0.50 },
+		},
 	},
 
-	conservatory = {
+	sunroom = {
 		parent = "foyer",
-		description = [[The Conservatory.
+		name = "Sunroom",
+		description = [[The Sunroom.
 
-A long glasshouse running the length of the manor's north
-wing. Lamplight glints off the panes. The air is heavy with
-the perfume of orchids and damp earth. A small wrought-iron
-table holds the remains of a tea service — and a leather
-notebook left open beside it.]],
+Glass on three sides, string lights, and a very expensive
+espresso bar someone set up for the party. Two used cups sit
+in the drip tray.
+
+A spare guest badge has been left on the counter.]],
 		wall = { 0.12, 0.22, 0.20 },
 		floor = { 0.46, 0.50, 0.40 },
 		floor_tint = { 0.14, 0.32, 0.28, 0.30 },
@@ -186,19 +195,20 @@ notebook left open beside it.]],
 			{ "painting", 0.88, 82 },
 		},
 		items = {
-			{ ref = "tea_service", x = 0.40, y = 0.45 },
-			{ ref = "prescription", x = 0.68, y = 0.65 },
+			{ ref = "espresso_bar", x = 0.38, y = 0.45 },
+			{ ref = "keycard", x = 0.68, y = 0.62 },
 		},
 	},
 
 	cellar = {
 		parent = "foyer",
-		description = [[The Cellar.
+		name = "Wine Cellar",
+		requires = "keycard.txt",
+		description = [[The Wine Cellar, down a flight of stairs.
 
-Cool and dim. The smell of damp stone and old wood. Wine
-racks line the walls in long, orderly rows. A barrel sits
-in the centre, its lid askew — and something white has been
-hastily shoved between it and the wall.]],
+Cool and dim, racks of bottles in orderly rows. The smart lock
+on the door has been finicky all night. Something small and
+white is wedged face-down between two of the racks.]],
 		wall = { 0.09, 0.08, 0.09 },
 		floor = { 0.20, 0.18, 0.16 },
 		floor_tint = { 0.02, 0.02, 0.03, 0.75 },
@@ -206,14 +216,22 @@ hastily shoved between it and the wall.]],
 			{ "armoire", 0.50, 170 },
 		},
 		items = {
-			{ ref = "bloody_glove", x = 0.35, y = 0.55 },
-			{ ref = "wine_inventory", x = 0.65, y = 0.38 },
+			{ ref = "badge", x = 0.35, y = 0.55 },
+			{ ref = "cellar_access_log", x = 0.65, y = 0.38 },
 		},
 	},
 
-	bedroom = {
-		parent = "conservatory",
-		description = [[Sleeping place]],
+	garage = {
+		parent = "foyer",
+		name = "Garage",
+		description = [[The Garage.
+
+Converted into an overflow workspace: a folding table, a
+mechanical keyboard, three monitors on a laptop stand, and a
+half-drunk energy drink. Priya was out here most of the night
+pushing a hotfix.
+
+A GitHub Actions run history is still up on the screen.]],
 		floor_tint = { 0.78, 0.55, 0.30, 0.25 },
 		rug = true,
 		furniture = {
@@ -221,7 +239,59 @@ hastily shoved between it and the wall.]],
 			{ "mirror", 0.70, 215 },
 		},
 		items = {
-			{ ref = "clean_sword", x = 0.35, y = 0.55 },
+			{ ref = "deploy_log", x = 0.45, y = 0.55 },
+		},
+	},
+
+	game_room = {
+		parent = "foyer",
+		name = "Game Room",
+		description = [[The Game Room.
+
+A stand-up arcade cabinet, a couch, and a laptop someone left
+running a Balatro seed. The office's Balatro obsession clearly
+has a home base.
+
+A printout is pinned to the side of the cabinet.]],
+		wall = { 0.14, 0.12, 0.20 },
+		floor = { 0.30, 0.26, 0.34 },
+		floor_tint = { 0.20, 0.10, 0.30, 0.30 },
+		furniture = {
+			{ "clock", 0.18, 72 },
+			{ "painting", 0.52, 82 },
+			{ "mirror", 0.84, 215 },
+		},
+		items = {
+			{ ref = "office_meme", x = 0.50, y = 0.55 },
+		},
+	},
+
+	server_room = {
+		parent = "foyer",
+		name = "Server Room",
+		mode = "000",
+		lock_code = "foxglove",
+		description = [[The Server Room.
+
+The house's real infrastructure lives here: two racks, blinking
+LEDs, a wall of cold air. This is Daniel's domain, and the door
+is on a keypad, not a badge.
+
+A workstation in the corner holds a cost report, a personal
+spreadsheet, and a raw access log.]],
+		wall = { 0.10, 0.12, 0.14 },
+		floor = { 0.16, 0.18, 0.20 },
+		floor_tint = { 0.10, 0.14, 0.20, 0.45 },
+		furniture = {
+			{ "armoire", 0.20, 170 },
+			{ "shelf_empty", 0.80, 205 },
+		},
+		items = {
+			{ ref = "billing_audit", x = 0.24, y = 0.42 },
+			{ ref = "dosage_log", x = 0.50, y = 0.60 },
+			{ ref = "slack_final", x = 0.74, y = 0.40 },
+			{ ref = "slack_draft", x = 0.74, y = 0.70 },
+			{ ref = "audit_stream", x = 0.40, y = 0.80 },
 		},
 	},
 }
@@ -243,6 +313,9 @@ local function build_rooms()
       floor_tint = def.floor_tint,
       rug = def.rug,
       furniture = def.furniture,
+      mode = def.mode,
+      lock_code = def.lock_code,
+      requires = def.requires,
       items = {},
     }
     for _, placement in ipairs(def.items or {}) do
@@ -302,7 +375,7 @@ function M.get_item(room_id, filename)
 	return room and room.items[filename]
 end
 
--- Resolve a file path like "library/torn_letter.txt" or plain "torn_letter.txt".
+-- Resolve a file path like "home_office/draft_email.txt" or plain "draft_email.txt".
 -- Returns room_id, filename on success, or nil, nil, error_string on failure.
 function M.resolve_file_path(current_room_id, path_str)
 	if not path_str:find("/", 1, true) then

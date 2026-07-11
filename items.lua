@@ -1,188 +1,306 @@
 -- items.lua
 -- Intrinsic item definitions (sprite, content). Placement data (x, y, room) lives in world.lua.
+--
+-- Fields:
+--   sprite   room-view floor icon key (see render.lua M.sprites)
+--   popup    optional popup style override ("slack"); defaults to sprite
+--   channel  optional Slack channel / DM label (slack popup only)
+--   hidden   requires `ls -a` / grep -a to see
+--   filename optional filename override (defaults to id .. ".txt")
 
 local M = {}
 
 M.registry = {
 
+	-- ---------------- Entrance Hall ----------------
+
 	welcome = {
 		sprite  = "scroll",
-		content = [[Dear Investigator,
+		content = [[To whoever picks this up —
 
-If you are reading this, the worst has happened. I have left
-this note for whoever finds Edmund.
+Legal wants this contained before anyone calls the police.
+The full guest list is on the entry table. Arjun is in the Den.
 
-I suspect one of our guests means him harm. I overheard a
-quarrel in the Library yesterday — voices raised about money
-and a "matter of professional ruin." I dared not enter.
+Find out what happened tonight, quietly, and come to me first.
 
-Find the truth. Edmund deserves no less.
-
-— A friend]],
+— T.K.]],
 	},
 
 	guest_list = {
 		sprite  = "scroll",
-		content = [[Guests in residence the night of October 14th, 1923:
+		content = [[Strictly.ai — Series C Launch Party
+Guest manifest, October 14th:
 
-  Lady Vivienne Ashworth      (wife of the deceased)
-  Dr. Reginald Croft          (family physician)
-  Miss Eliza Hartwell         (governess to the children)
-  Captain Theodore Blackwood  (army comrade of Lord Ashworth)
+  Ayesha Raza     — Principal Engineer      (Emacs; runs #balatro)
+  Wei Zhao        — Staff Engineer          (Vim; office Balatro #1)
+  Priya Raghavan  — Senior Systems Engineer (Rust; anti-Jess)
+  Daniel Lin      — Head of Infrastructure  (VSCode, default settings)
 
-Staff dismissed for the evening at 8pm by Lord Ashworth's
-explicit instruction.
+Catering staff dismissed at 9:00 PM per contract. Arjun Mehta
+(VP, AI Research) last seen heading to the Den around 9:55 PM.
 
-Lord Edmund Ashworth retired to his Study at approximately
-9:45 PM. He was found at 10:20 PM by Lady Vivienne.]],
+Corp handles are first-initial + last name. Daniel Lin is `dlin`.]],
 	},
 
-	torn_letter = {
+	slack_general = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "#general",
+		content = [[ayesha  9:41 PM
+  emacs has done modal editing for twenty years wei, sit down
+wei  9:42 PM
+  modal editing is not a personality ayesha
+priya  9:47 PM
+  hot take for the launch: AI-generated code is a war crime
+priya  9:48 PM
+  said that to arjun's face an hour ago and i stand by it
+wei  9:50 PM
+  brb, trent needs the AV rig in the den fixed before the demo
+ayesha  9:58 PM
+  balatro bracket is running in the living room all night, get in here
+daniel  10:01 PM
+  can't, grinding a solo run, don't jinx it
+ayesha  10:03 PM
+  does anyone know why the wine cellar smart lock keeps triggering
+wei  10:05 PM
+  ok the emacs/vim debate ends NOW. living room. everyone.
+ayesha  10:16 PM
+  daniel's been in the home office the whole party. has anyone
+  actually *seen* him or is he just balatro-ing alone again]],
+	},
+
+	-- ---------------- Home Office ----------------
+
+	draft_email = {
 		sprite  = "scroll",
-		content = [==[... and I cannot impress upon you strongly enough, Edmund,
-the gravity of what I have found. The fund for the medical
-treatment of the village children is missing nearly three
-hundred pounds. The ledger entries are in R.C.'s hand.
+		content = [==[An unsent draft is open on the desktop, addressed to Trent:
 
-I do not wish to believe it of him. We have known the man
-since the war. But the figures do not lie, and I will be
-forced to lay this before the magistrate at the end of the
-month unless he confesses and makes restitution.
+  Trent —
 
-I have asked him to come to me on the evening of the 14th
-to settle the matter privately. God grant me the wisdom
-[remainder torn away]]==],
+  I've been going over the Q3 infra numbers and something is
+  wrong. Compute utilization on the training cluster doesn't
+  match the invoiced hours. I've traced about $310K to a vendor
+  account that doesn't correspond to anything in our
+  [the draft is torn off here]]==],
 	},
 
-	bookshelf_log = {
+	repo_log = {
 		sprite  = "book",
-		content = [[Volumes recently borrowed (per the library ledger):
+		content = [[Recently-cloned repositories on this machine:
 
-  - "A Treatise on Hellebore and Other Garden Poisons"
-  - "The Encyclopaedia of Tropical Maladies"
-  - "Reminiscences of the Crimean Campaign"
-  - "Modern Methods in Forensic Science"
+  jessai-agent-core
+  hotfix-oct14                (praghavan)
+  creatine-cycle-calculator   (praghavan, personal)
+  infra-billing-dashboard     (dlin)
 
-The first title was signed out by Lady Vivienne Ashworth.
-She is, by her own admission, a keen amateur gardener.]],
+The creatine repo is a personal side project — Priya is deep
+into supplement stacks. A dead end, but a colorful one.]],
 	},
+
+	cipher_note = {
+		sprite  = "scroll",
+		hidden  = true,
+		content = [[A sticky note stuck under the keyboard tray:
+
+        IRAJORYH
+
+  (shift three back, same as always)]],
+	},
+
+	-- ---------------- The Den ----------------
 
 	victim = {
-		sprite  = "scroll",
-		content = [[Lord Edmund Ashworth, aged 54.
+		sprite  = "bottle",
+		content = [[Arjun Mehta, 32. Found unresponsive around 10:20 PM.
 
-Cause of death (preliminary): cardiac arrest, almost certainly
-poisoning. Foam at the mouth. Pupils widely dilated. The
-sickly-sweet smell on his breath is consistent with digitalis
-toxicity — a derivative of the foxglove plant, used medicinally
-in carefully measured doses to slow a racing heart, but lethal
-in excess.
+A half-finished bottle of kombucha sits beside him. The
+symptoms — the racing-then-failing heart, the dilated pupils —
+are consistent with a cardiac-glycoside overdose. That compound
+is derived from foxglove: medicinal in tiny doses, lethal in
+excess.
 
-On the desk: a half-finished glass of brandy. A small medicine
-bottle, empty. The bottle bears no label.
-
-Time of death: between 10:00 and 10:20 PM.]],
+Time of death: 10:05–10:20 PM.]],
 	},
 
-	alibi_notes = {
+	party_statements = {
 		sprite  = "scroll",
-		content = [[Statements collected immediately after the body was found:
+		content = [[Statements taken in the first hour:
 
-Lady Vivienne Ashworth:
-  "I was in the Conservatory tending to my orchids until
-   I went to fetch Edmund for our nightly cocoa at 10:20.
-   That is when I found him."
+Ayesha Raza:
+  "Wei and I were screaming about editors in the Living Room
+   from about 10:05 until Trent's toast. Half the party was
+   watching. Ask literally anyone."
 
-Dr. Reginald Croft:
-  "I was reading alone in the Library all evening. I heard
-   nothing. I came running only when Vivienne cried out."
+Wei Zhao:
+  "I fixed the AV rig in the Den earlier — like 9:50 — for the
+   demo. After that I was arguing with Ayesha in front of
+   everyone, then Priya and I grabbed espresso."
 
-Miss Eliza Hartwell:
-  "I was upstairs in the nursery with the children. They
-   are both feverish and I did not leave their bedside."
+Priya Raghavan:
+  "I was pushing a hotfix most of the night from the garage.
+   Yes, I yelled at Arjun earlier. I did not touch him."
 
-Captain Theodore Blackwood:
-  "I was in the Cellar selecting a bottle of port. Edmund
-   keeps — kept — an excellent 1897 down there. I returned
-   to the drawing room at about 10:15."]],
+Daniel Lin:
+  "I was in the home office grinding a Balatro run. Didn't want
+   to jinx it, so I kept to myself. Didn't even hear the
+   emacs/vim thing kick off."
+
+Only Daniel's account has no one to confirm it.]],
 	},
 
-	desk_diary = {
+	calendar_note = {
+		sprite  = "scroll",
+		content = [[A reminder is still lit on Arjun's phone on the side table:
+
+  10:00 PM — Meet D. in the Den. Show him the billing
+             numbers before I show Trent. Hoping there's
+             an explanation.]],
+	},
+
+	-- ---------------- .closet (hidden, off the Den) ----------------
+
+	draft_email_continued = {
+		sprite  = "scroll",
+		content = [[The rest of the torn email, crumpled in the wastebasket:
+
+  ...doesn't correspond to anything in our approved vendor list.
+  The account is provisioned under `dlin-admin`. Before I take
+  this to you I want to hear it from Daniel directly — I could
+  be wrong about what it means.
+
+  I've asked him to meet me at 10 in the Den.]],
+	},
+
+	-- ---------------- Sunroom ----------------
+
+	espresso_bar = {
+		sprite  = "cups",
+		content = [[The espresso bar in the sunroom.
+
+Two used cups sit in the drip tray, still faintly warm. Someone
+made coffee for two here this evening — despite how many of the
+statements insist everyone was off on their own.]],
+	},
+
+	keycard = {
+		sprite  = "keycard",
+		content = [[A spare guest badge, left on the counter.
+
+It's the kind handed out at the door tonight — and it still
+scans. The house's smart locks read these. You could carry it
+to a door that won't open.]],
+	},
+
+	-- ---------------- Wine Cellar (mv-key gated) ----------------
+
+	badge = {
+		sprite  = "badge",
+		content = [[A company badge lies face-down between two wine racks:
+
+        DANIEL LIN
+        Infrastructure
+
+A single balled-up nitrile glove is wedged behind it.]],
+	},
+
+	cellar_access_log = {
 		sprite  = "book",
-		content = [[From Lord Ashworth's desk diary, entry for October 14th:
+		content = [[Wine-cellar smart-lock scan log:
 
-  "10 pm — R. to call upon me here in the Study. I shall
-   give him one last opportunity to confess and put matters
-   right before I am compelled to act. I do not relish this.
-   He was my dearest friend in Egypt.
+  9:44 PM   badge scan: staff (catering, exiting)
+  10:12 PM  badge scan: dlin
+  --        no other scans 9:45 PM - 10:30 PM
 
-   If he refuses, I will have no choice but to write to the
-   magistrate in the morning."]],
+Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 	},
 
-	tea_service = {
+	-- ---------------- Garage ----------------
+
+	deploy_log = {
+		sprite  = "book",
+		content = [[GitHub Actions — run history, repo `hotfix-oct14`:
+
+  triggered by: praghavan
+  10:02 PM  build started
+  10:07 PM  tests running
+  10:14 PM  deploy step
+  10:19 PM  run completed  [ok]
+
+Continuous activity, one operator, 10:02-10:19 PM. Priya was at
+this keyboard for the entire murder window. She's clear.]],
+	},
+
+	-- ---------------- Game Room ----------------
+
+	office_meme = {
 		sprite  = "scroll",
-		content = [[On the iron table: a porcelain tea set arranged for two.
+		hidden  = true,
+		content = [[A printout pinned to the arcade cabinet — "hackathon 2024":
 
-Both cups have been used. One is empty; the other contains
-a finger of cold tea and a curl of lemon peel. The teapot
-is half-full and still faintly warm to the touch.
+        GZYH ZIV YVGGVI
 
-This room was occupied this evening, by at least two people,
-despite what the alibis claim.]],
+  with a hand-drawn A-Z mirror chart underneath
+  (A<->Z, B<->Y, C<->X, ...).]],
 	},
 
-	prescription = {
-		sprite  = "scroll",
-		content = [[The leather notebook on the table is a physician's
-prescription pad. The topmost page reads:
+	-- ---------------- Server Room (chmod-locked) ----------------
 
-   Patient: Lord E. Ashworth
-   Date:    October 14th, 1923
+	billing_audit = {
+		sprite  = "book",
+		content = [[Q3 Infrastructure Cost Review (finance draft):
 
-   Rx: Tincture of digitalis, 30 drops in brandy,
-       to be taken upon retiring for the night.
+  ~$310,000 in compute spend routed through a vendor account,
+  "Meridian Compute Partners." No signed contract on file.
+  Payment authorization and account provisioning both trace
+  back to a single admin: Daniel Lin (dlin-admin).
 
-       — R. Croft, M.D.
-
-A normal therapeutic dose is two to four drops. Thirty drops
-would stop a strong man's heart within minutes.
-
-A torn corner of the same paper has been crumpled and dropped
-beneath the table, as if in haste.]],
+This is the money Arjun found.]],
 	},
 
-	bloody_glove = {
-		sprite  = "glove",
-		content = [[Tucked behind a barrel of '97 port: a single white surgeon's
-glove, balled up and damp. The cotton is stained dark brown
-along the thumb and forefinger — the colour of dried blood,
-or perhaps something else.
+	dosage_log = {
+		sprite  = "book",
+		content = [[Personal spreadsheet, "HRV Stack — n=1":
 
-The silk lining bears a monogram embroidered in fine red
-thread:
+  A week-by-week self-experiment log. Among the usual magnesium
+  and creatine entries, one is dosed daily for a month:
 
-       R. C.
+        foxglove leaf extract
 
-A second glove is not in evidence. Whoever wore it was here
-this evening, and was in a hurry.]],
+  Margin note: "therapeutic window is narrow — don't get
+  creative with this one."
+
+Foxglove is the source of the cardiac glycoside that killed
+Arjun.]],
 	},
 
-	wine_inventory = {
-		sprite  = "scroll",
-		content = [[Recent withdrawals from the cellar (per the steward's log):
-
-  Oct 12 — 1 bottle Madeira, Lady V.
-  Oct 13 — 2 bottles claret, Capt. Blackwood
-  Oct 14 — 1 bottle port '97, Capt. Blackwood
-  Oct 14 — 1 bottle brandy, Lord E.
-
-The brandy bottle from the 14th cannot be located.]],
+	slack_final = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "DM: daniel lin",
+		content = [[daniel  10:41 PM
+  in the home office all night fighting a deploy, didn't even hear the emacs/vim thing kick off lol]],
 	},
 
-	clean_sword = {
-		sprite  = "sword",
-		content = [[A clean sword... almost too clean.]],
+	slack_draft = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "DM: daniel lin (draft)",
+		hidden  = true,
+		content = [[daniel  (draft — never sent)
+  in the home office all night fighting a deploy (stepped out ~5 min around 10 to grab something from the cellar), didn't even hear the emacs/vim thing kick off lol]],
+	},
+
+	audit_stream = {
+		sprite   = "book",
+		filename = "audit_stream.log",
+		content  = [[# facility access stream — raw
+# infra service account 'svc-agent' provisioned by dlin, Oct 14
+
+10:01:22  svc-agent  auth  home_office
+10:04:07  svc-agent  scan  den
+10:09:55  svc-agent  auth  server_room
+10:12:31  svc-agent  scan  cellar
+10:15:48  svc-agent  auth  home_office]],
 	},
 
 }

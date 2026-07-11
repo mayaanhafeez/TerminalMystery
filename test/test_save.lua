@@ -100,21 +100,21 @@ T.suite("save / load round-trip — table fields")
 T.test("visited table survives round-trip", function()
     reset()
     local s = World.new_state()
-    s.visited["cellar"]  = true
-    s.visited["library"] = true
+    s.visited["cellar"]      = true
+    s.visited["home_office"] = true
     Save.save_state(s, FILE)
     local loaded = Save.load_state(FILE)
-    T.ok(loaded.visited["foyer"],   "foyer should be visited")
-    T.ok(loaded.visited["cellar"],  "cellar should be visited")
-    T.ok(loaded.visited["library"], "library should be visited")
+    T.ok(loaded.visited["foyer"],       "foyer should be visited")
+    T.ok(loaded.visited["cellar"],      "cellar should be visited")
+    T.ok(loaded.visited["home_office"], "home_office should be visited")
 end)
 
 T.test("files_read survives round-trip", function()
     reset()
     local s = World.new_state()
-    s.files_read["library/torn_letter.txt"] = true
+    s.files_read["home_office/draft_email.txt"] = true
     Save.save_state(s, FILE)
-    T.ok(Save.load_state(FILE).files_read["library/torn_letter.txt"])
+    T.ok(Save.load_state(FILE).files_read["home_office/draft_email.txt"])
 end)
 
 T.test("unlocked grep survives round-trip as true", function()
@@ -136,9 +136,9 @@ end)
 T.test("destroyed items survive round-trip", function()
     reset()
     local s = World.new_state()
-    s.destroyed["cellar/bloody_glove.txt"] = true
+    s.destroyed["cellar/badge.txt"] = true
     Save.save_state(s, FILE)
-    T.ok(Save.load_state(FILE).destroyed["cellar/bloody_glove.txt"])
+    T.ok(Save.load_state(FILE).destroyed["cellar/badge.txt"])
 end)
 
 -- -----------------------------------------------------------------------
@@ -171,19 +171,19 @@ T.suite("room snapshot")
 T.test("visited rooms appear in saved rooms table", function()
     reset()
     local s = World.new_state()
-    s.visited["library"] = true
+    s.visited["home_office"] = true
     Save.save_state(s, FILE)
     local loaded = Save.load_state(FILE)
-    T.ok(loaded.rooms["foyer"],   "foyer should be in saved rooms")
-    T.ok(loaded.rooms["library"], "library should be in saved rooms")
+    T.ok(loaded.rooms["foyer"],       "foyer should be in saved rooms")
+    T.ok(loaded.rooms["home_office"], "home_office should be in saved rooms")
 end)
 
 T.test("unvisited rooms are absent from saved rooms table", function()
     reset()
     local s = World.new_state()   -- only foyer visited
     Save.save_state(s, FILE)
-    T.nil_(Save.load_state(FILE).rooms["cellar"],  "unvisited cellar should not be saved")
-    T.nil_(Save.load_state(FILE).rooms["library"], "unvisited library should not be saved")
+    T.nil_(Save.load_state(FILE).rooms["cellar"],      "unvisited cellar should not be saved")
+    T.nil_(Save.load_state(FILE).rooms["home_office"], "unvisited home_office should not be saved")
 end)
 
 T.test("saved room entry contains items table", function()
@@ -200,8 +200,8 @@ T.suite("save / load round-trip — sed edits (writable + content)")
 T.test("sed -i edit and writable flag survive round-trip", function()
     reset()
     local s = World.new_state()
-    s.visited["library"] = true
-    local item = World.rooms.library.items["torn_letter.txt"]
+    s.visited["home_office"] = true
+    local item = World.rooms.home_office.items["draft_email.txt"]
     item.writable = true
     item.edited   = true
     item.content  = "line with \"quotes\"\nsecond\ttab line"
@@ -209,7 +209,7 @@ T.test("sed -i edit and writable flag survive round-trip", function()
     Save.save_state(s, FILE)
     World.restore_rooms(Save.load_state(FILE).rooms)
 
-    local r = World.rooms.library.items["torn_letter.txt"]
+    local r = World.rooms.home_office.items["draft_email.txt"]
     T.eq(r.writable, true)
     T.eq(r.edited, true)
     T.eq(r.content, "line with \"quotes\"\nsecond\ttab line",
@@ -219,8 +219,8 @@ end)
 T.test("unedited files do not persist content (rehydrate from registry)", function()
     reset()
     local s = World.new_state()
-    s.visited["library"] = true
+    s.visited["home_office"] = true
     Save.save_state(s, FILE)
-    local stub = Save.load_state(FILE).rooms["library"].items["torn_letter.txt"]
+    local stub = Save.load_state(FILE).rooms["home_office"].items["draft_email.txt"]
     T.nil_(stub.content, "unedited file stub should omit content")
 end)

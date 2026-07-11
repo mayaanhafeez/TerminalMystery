@@ -7,16 +7,18 @@ T.suite("Room normalization")
 
 T.test("id is derived from table key", function()
     T.eq(World.rooms.foyer.id, "foyer")
-    T.eq(World.rooms.library.id, "library")
+    T.eq(World.rooms.home_office.id, "home_office")
     T.eq(World.rooms[".closet"].id, ".closet")
 end)
 
-T.test("name is capitalized id by default", function()
-    T.eq(World.rooms.foyer.name, "Foyer")
-    T.eq(World.rooms.library.name, "Library")
-    T.eq(World.rooms.cellar.name, "Cellar")
-    T.eq(World.rooms.conservatory.name, "Conservatory")
-    T.eq(World.rooms.bedroom.name, "Bedroom")
+T.test("name is set explicitly or capitalized id by default", function()
+    T.eq(World.rooms.foyer.name, "Entrance Hall")
+    T.eq(World.rooms.home_office.name, "Home Office")
+    T.eq(World.rooms.den.name, "The Den")
+    T.eq(World.rooms.cellar.name, "Wine Cellar")
+    T.eq(World.rooms.sunroom.name, "Sunroom")
+    T.eq(World.rooms.garage.name, "Garage")
+    T.eq(World.rooms.server_room.name, "Server Room")
 end)
 
 T.test(".closet name stays lowercase (dot prefix)", function()
@@ -25,70 +27,79 @@ end)
 
 T.test("items are keyed by filename", function()
     T.ok(World.rooms.foyer.items["welcome.txt"], "welcome.txt in foyer")
-    T.ok(World.rooms.library.items["torn_letter.txt"], "torn_letter.txt in library")
-    T.ok(World.rooms.cellar.items["bloody_glove.txt"], "bloody_glove.txt in cellar")
+    T.ok(World.rooms.home_office.items["draft_email.txt"], "draft_email.txt in home_office")
+    T.ok(World.rooms.cellar.items["badge.txt"], "badge.txt in cellar")
+end)
+
+T.test("item filename override is honored (.log)", function()
+    T.ok(World.rooms.server_room.items["audit_stream.log"], "audit_stream.log in server_room")
+    T.eq(World.rooms.server_room.items["audit_stream.log"].id, "audit_stream")
 end)
 
 T.test("item filename is derived from item key", function()
     T.eq(World.rooms.foyer.items["welcome.txt"].filename, "welcome.txt")
-    T.eq(World.rooms.conservatory.items["tea_service.txt"].filename, "tea_service.txt")
+    T.eq(World.rooms.sunroom.items["espresso_bar.txt"].filename, "espresso_bar.txt")
 end)
 
 T.test("item room field matches containing room", function()
-    T.eq(World.rooms.library.items["torn_letter.txt"].room, "library")
-    T.eq(World.rooms.cellar.items["wine_inventory.txt"].room, "cellar")
+    T.eq(World.rooms.home_office.items["draft_email.txt"].room, "home_office")
+    T.eq(World.rooms.cellar.items["cellar_access_log.txt"].room, "cellar")
 end)
 
-T.test("no duplicate bloody_glove", function()
+T.test("cellar holds exactly two items", function()
     local count = 0
     for _ in pairs(World.rooms.cellar.items) do count = count + 1 end
     T.eq(count, 2)
 end)
 
 T.test("parent relationships are correct", function()
-    T.eq(World.rooms.library.parent, "foyer")
-    T.eq(World.rooms.study.parent, "foyer")
-    T.eq(World.rooms.conservatory.parent, "foyer")
+    T.eq(World.rooms.home_office.parent, "foyer")
+    T.eq(World.rooms.den.parent, "foyer")
+    T.eq(World.rooms.sunroom.parent, "foyer")
     T.eq(World.rooms.cellar.parent, "foyer")
-    T.eq(World.rooms.bedroom.parent, "conservatory")
-    T.eq(World.rooms[".closet"].parent, "study")
+    T.eq(World.rooms.garage.parent, "foyer")
+    T.eq(World.rooms[".closet"].parent, "den")
     T.nil_(World.rooms.foyer.parent, "foyer has no parent")
+end)
+
+T.test("gating fields propagate from raw to rooms", function()
+    T.eq(World.rooms.server_room.mode, "000")
+    T.eq(World.rooms.server_room.lock_code, "foxglove")
+    T.eq(World.rooms.cellar.requires, "keycard.txt")
 end)
 
 T.suite("get_item")
 
 T.test("returns item by room + filename", function()
-    local item = World.get_item("library", "torn_letter.txt")
+    local item = World.get_item("home_office", "draft_email.txt")
     T.ok(item, "item exists")
-    T.eq(item.id, "torn_letter")
+    T.eq(item.id, "draft_email")
 end)
 
 T.test("returns nil for wrong room", function()
-    T.nil_(World.get_item("foyer", "torn_letter.txt"))
+    T.nil_(World.get_item("foyer", "draft_email.txt"))
 end)
 
 T.test("returns nil for nonexistent file", function()
-    T.nil_(World.get_item("library", "nothing.txt"))
+    T.nil_(World.get_item("home_office", "nothing.txt"))
 end)
 
 T.suite("get_items_in_room")
 
 T.test("returns all non-hidden items", function()
-    local items = World.get_items_in_room("study")
+    local items = World.get_items_in_room("den")
     T.eq(#items, 3)
 end)
 
 T.test("excludes hidden items by default", function()
-    -- .closet is hidden; its parent study should not expose it
-    local items = World.get_items_in_room("study")
-    for _, item in ipairs(items) do
-        T.ok(not item.hidden, "no hidden items returned by default")
-    end
+    -- office_meme in the game room is hidden
+    local items = World.get_items_in_room("game_room")
+    T.eq(#items, 0)
 end)
 
-T.test("empty room returns empty list", function()
-    local items = World.get_items_in_room(".closet")
-    T.eq(#items, 0)
+T.test("hidden items appear with include_hidden", function()
+    local items = World.get_items_in_room("game_room", true)
+    T.eq(#items, 1)
 end)
 
 T.test("invalid room returns empty list", function()
@@ -98,28 +109,23 @@ end)
 
 T.suite("get_exits")
 
-T.test("foyer has four children", function()
+T.test("foyer has seven children", function()
     local exits = World.get_exits("foyer")
-    T.eq(#exits, 4)
+    T.eq(#exits, 7)
 end)
 
-T.test("conservatory exit includes foyer (parent) and bedroom (child)", function()
-    local exits = World.get_exits("conservatory")
-    local has_foyer, has_bedroom = false, false
+T.test("den exit includes foyer (parent) and .closet (child)", function()
+    local exits = World.get_exits("den")
+    local has_foyer, has_closet = false, false
     for _, id in ipairs(exits) do
         if id == "foyer" then has_foyer = true end
-        if id == "bedroom" then has_bedroom = true end
+        if id == ".closet" then has_closet = true end
     end
-    T.ok(has_foyer, "conservatory exit includes foyer")
-    T.ok(has_bedroom, "conservatory exit includes bedroom")
+    T.ok(has_foyer, "den exit includes foyer")
+    T.ok(has_closet, "den exit includes .closet")
 end)
 
-T.test("foyer (root) has no parent exit", function()
-    local exits = World.get_exits("foyer")
-    for _, id in ipairs(exits) do
-        T.ok(id ~= nil, "exit ids are not nil")
-    end
-    -- root has no parent, so all exits are children
+T.test("foyer (root) has no parent", function()
     T.ok(World.rooms.foyer.parent == nil, "foyer has no parent")
 end)
 
@@ -136,30 +142,28 @@ T.test("bare room name case-insensitive", function()
 end)
 
 T.test(". resolves to current room", function()
-    local id = World.resolve_room_path("library", ".")
-    T.eq(id, "library")
+    local id = World.resolve_room_path("home_office", ".")
+    T.eq(id, "home_office")
 end)
 
 T.test(".. resolves to parent", function()
-    local id = World.resolve_room_path("library", "..")
+    local id = World.resolve_room_path("home_office", "..")
     T.eq(id, "foyer")
 end)
 
-T.test("../Cellar from conservatory resolves to cellar", function()
-    local id = World.resolve_room_path("conservatory", "../Cellar")
+T.test("../Cellar from sunroom resolves to cellar", function()
+    local id = World.resolve_room_path("sunroom", "../Cellar")
     T.eq(id, "cellar")
 end)
 
-T.test("../Library from study resolves to library", function()
-    local id = World.resolve_room_path("study", "../Library")
-    T.eq(id, "library")
+T.test("../home_office from den resolves via parent then child", function()
+    local id = World.resolve_room_path("den", "../home_office")
+    T.eq(id, "home_office")
 end)
 
-T.test("../Bedroom from conservatory resolves via parent then child", function()
-    -- bedroom is child of conservatory, so from study: ../Conservatory/Bedroom
-    -- but from foyer: Conservatory/Bedroom or just direct "bedroom" name
-    local id = World.resolve_room_path("foyer", "Conservatory")
-    T.eq(id, "conservatory")
+T.test("bare Sunroom resolves by name", function()
+    local id = World.resolve_room_path("foyer", "Sunroom")
+    T.eq(id, "sunroom")
 end)
 
 T.test(".. from root stays at root (no parent)", function()

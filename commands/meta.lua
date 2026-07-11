@@ -10,10 +10,10 @@ local function help(state, _)
         "  pwd                      print current room path",
         "  cwd                      print previous room path",
         "  cd <room>                move to an adjacent room",
-        "  cd .. / cd ~             go up to the Foyer (root / home)",
-        "  cd ../<room>             go up then into a room (e.g. cd ../study)",
+        "  cd .. / cd ~             go up to the Entrance Hall (root / home)",
+        "  cd ../<room>             go up then into a room (e.g. cd ../den)",
         "  cd -                     return to the previous room",
-        "  cd                       return to the Foyer",
+        "  cd                       return to the Entrance Hall",
         "  echo <text>              repeat text back",
         "  exit                     quit the game",
         "  help                     show this list",
@@ -68,32 +68,32 @@ local function accuse(state, args)
         :lower():gsub("^%s+", ""):gsub("%s+$", "")
     local resolved = World.accuse_aliases[input]
     if not resolved then
-        return "You glance around the drawing room. No one there\n"
-            .. "answers to that name. Try a surname, or a full name."
+        return "You scan the room. No one here answers to that name.\n"
+            .. "Try a first name, a surname, or a full name."
     end
 
     if resolved == World.murderer then
         state.won = true
         state.win_time = state.elapsed
         state.win_commands = state.command_count
-        return "You point your finger across the drawing room at\n"
-            .. "Dr. Reginald Croft.\n\n"
-            .. "His face goes white. His hand drifts toward his coat\n"
-            .. "pocket, then stops. He sits — very slowly — upon the\n"
-            .. "chaise, and the fight goes out of him.\n\n"
-            .. "  \"I never meant... I never meant for it to come to\n"
-            .. "   this. He was going to ruin me.\"\n\n"
-            .. "He confesses to all of it: the embezzlement from the\n"
-            .. "village medical fund, the lethal dose, the gloves he\n"
-            .. "wore to handle the bottle, the one he panicked and\n"
-            .. "hid in the cellar before the body had even gone cold.\n\n"
+        return "You turn to Daniel Lin.\n\n"
+            .. "He doesn't argue. He sets down his laptop, the solo\n"
+            .. "Balatro run still paused on the screen, and lets out a\n"
+            .. "long breath.\n\n"
+            .. "  \"He was going to take it to Trent. The billing, the\n"
+            .. "   vendor account — all of it. I'd have lost everything.\"\n\n"
+            .. "He admits the rest: the $310K he skimmed through Meridian\n"
+            .. "Compute, the foxglove extract from his own HRV stack, the\n"
+            .. "kombucha in the Den at 10:00, the badge scan in the cellar,\n"
+            .. "and the log he tried to scrub — swapping his handle for a\n"
+            .. "service account so no one would look twice.\n\n"
             .. "The case is yours."
     end
 
     return "You point your finger at " .. resolved .. ".\n\n"
-        .. "They blanch, sputter, and then their eyes go cold:\n"
-        .. "  \"You have no proof — and you are wrong.\"\n\n"
-        .. "The room is silent. The real killer relaxes, just a little.\n"
+        .. "They blink, then their expression hardens:\n"
+        .. "  \"You've got the wrong person, and no proof.\"\n\n"
+        .. "The room goes quiet. The real killer relaxes, just a little.\n"
         .. "(Keep looking. The truth is in the evidence.)"
 end
 

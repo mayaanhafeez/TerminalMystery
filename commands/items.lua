@@ -113,6 +113,10 @@ local function chmod(state, args)
     local name_lower  = target_name:lower()
     for id, room in pairs(World.rooms) do
         if id == name_lower or room.name:lower() == name_lower then
+            -- Keypad-locked rooms only accept the exact code (case-insensitive).
+            if room.lock_code and mode:lower() ~= room.lock_code:lower() then
+                return "chmod: " .. room.name .. ": incorrect code. The door stays locked."
+            end
             room.mode = mode
             return "chmod: " .. room.name .. " \xe2\x86\x92 " .. mode
         end

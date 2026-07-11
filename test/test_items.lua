@@ -28,25 +28,25 @@ end
 T.suite("mv — basic")
 
 T.test("mv moves file to another visited room", function()
-    local s = make_state("conservatory", {"conservatory", "foyer", "cellar"})
-    Items.mv(s, {"tea_service.txt", "Cellar"})
-    T.ok(World.rooms.cellar.items["tea_service.txt"], "item should be in cellar")
-    T.nil_(World.rooms.conservatory.items["tea_service.txt"], "item should be gone from conservatory")
-    move_item_back("tea_service.txt", "cellar", "conservatory")
+    local s = make_state("sunroom", {"sunroom", "foyer", "cellar"})
+    Items.mv(s, {"espresso_bar.txt", "Cellar"})
+    T.ok(World.rooms.cellar.items["espresso_bar.txt"], "item should be in cellar")
+    T.nil_(World.rooms.sunroom.items["espresso_bar.txt"], "item should be gone from sunroom")
+    move_item_back("espresso_bar.txt", "cellar", "sunroom")
 end)
 
 T.test("mv updates item.room field", function()
-    local s = make_state("conservatory", {"conservatory", "foyer", "cellar"})
-    Items.mv(s, {"tea_service.txt", "Cellar"})
-    T.eq(World.rooms.cellar.items["tea_service.txt"].room, "cellar")
-    move_item_back("tea_service.txt", "cellar", "conservatory")
+    local s = make_state("sunroom", {"sunroom", "foyer", "cellar"})
+    Items.mv(s, {"espresso_bar.txt", "Cellar"})
+    T.eq(World.rooms.cellar.items["espresso_bar.txt"].room, "cellar")
+    move_item_back("espresso_bar.txt", "cellar", "sunroom")
 end)
 
 T.test("mv ../Room resolves relative path", function()
-    local s = make_state("conservatory", {"conservatory", "foyer", "cellar"})
-    Items.mv(s, {"tea_service.txt", "../Cellar"})
-    T.ok(World.rooms.cellar.items["tea_service.txt"], "item should be in cellar via ../Cellar")
-    move_item_back("tea_service.txt", "cellar", "conservatory")
+    local s = make_state("sunroom", {"sunroom", "foyer", "cellar"})
+    Items.mv(s, {"espresso_bar.txt", "../Cellar"})
+    T.ok(World.rooms.cellar.items["espresso_bar.txt"], "item should be in cellar via ../Cellar")
+    move_item_back("espresso_bar.txt", "cellar", "sunroom")
 end)
 
 T.test("mv fails for nonexistent source file", function()
@@ -56,14 +56,14 @@ T.test("mv fails for nonexistent source file", function()
 end)
 
 T.test("mv fails for unvisited destination", function()
-    local s = make_state("conservatory", {"conservatory"})
-    local out = Items.mv(s, {"tea_service.txt", "Cellar"})
+    local s = make_state("sunroom", {"sunroom"})
+    local out = Items.mv(s, {"espresso_bar.txt", "Cellar"})
     T.ok(out:find("no such visited"), "expected 'no such visited room': " .. out)
 end)
 
 T.test("mv fails when source and destination are the same room", function()
-    local s = make_state("conservatory", {"conservatory"})
-    local out = Items.mv(s, {"tea_service.txt", "Conservatory"})
+    local s = make_state("sunroom", {"sunroom"})
+    local out = Items.mv(s, {"espresso_bar.txt", "Sunroom"})
     T.ok(out:find("same room"), "expected same-room error: " .. out)
 end)
 
@@ -76,46 +76,45 @@ end)
 -- -----------------------------------------------------------------------
 T.suite("mv — cross-room source path")
 
-T.test("mv library/torn_letter.txt cellar moves from library", function()
-    local s = make_state("foyer", {"foyer", "library", "cellar"})
-    Items.mv(s, {"Library/torn_letter.txt", "Cellar"})
-    T.ok(World.rooms.cellar.items["torn_letter.txt"], "item should be in cellar")
-    T.nil_(World.rooms.library.items["torn_letter.txt"], "item should be gone from library")
-    move_item_back("torn_letter.txt", "cellar", "library")
+T.test("mv home_office/draft_email.txt cellar moves from home_office", function()
+    local s = make_state("foyer", {"foyer", "home_office", "cellar"})
+    Items.mv(s, {"home_office/draft_email.txt", "Cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "item should be in cellar")
+    T.nil_(World.rooms.home_office.items["draft_email.txt"], "item should be gone from home_office")
+    move_item_back("draft_email.txt", "cellar", "home_office")
 end)
 
 -- -----------------------------------------------------------------------
 T.suite("cp — basic")
 
 T.test("cp copies file to another visited room", function()
-    local s = make_state("library", {"library", "foyer", "cellar"})
-    Items.cp(s, {"torn_letter.txt", "Cellar"})
-    T.ok(World.rooms.cellar.items["torn_letter.txt"], "copy should be in cellar")
-    T.ok(World.rooms.library.items["torn_letter.txt"], "original should still be in library")
+    local s = make_state("home_office", {"home_office", "foyer", "cellar"})
+    Items.cp(s, {"draft_email.txt", "Cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "copy should be in cellar")
+    T.ok(World.rooms.home_office.items["draft_email.txt"], "original should still be in home_office")
     -- cleanup
-    World.rooms.cellar.items["torn_letter.txt"] = nil
+    World.rooms.cellar.items["draft_email.txt"] = nil
 end)
 
 T.test("cp ../Room resolves relative path", function()
-    local s = make_state("library", {"library", "foyer", "cellar"})
-    Items.cp(s, {"torn_letter.txt", "../Cellar"})
-    T.ok(World.rooms.cellar.items["torn_letter.txt"], "copy via ../Cellar should be in cellar")
-    World.rooms.cellar.items["torn_letter.txt"] = nil
+    local s = make_state("home_office", {"home_office", "foyer", "cellar"})
+    Items.cp(s, {"draft_email.txt", "../Cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "copy via ../Cellar should be in cellar")
+    World.rooms.cellar.items["draft_email.txt"] = nil
 end)
 
 T.test("cp fails when file already exists at destination", function()
-    local s = make_state("foyer", {"foyer", "library"})
-    -- welcome.txt is in foyer; let's try to cp a file that already exists in library
-    -- First manually place a copy
-    World.rooms.library.items["welcome.txt"] = { id="dup", filename="welcome.txt", room="library", content="" }
-    local out = Items.cp(s, {"welcome.txt", "Library"})
+    local s = make_state("foyer", {"foyer", "home_office"})
+    World.rooms.home_office.items["welcome.txt"] =
+        { id="dup", filename="welcome.txt", room="home_office", content="" }
+    local out = Items.cp(s, {"welcome.txt", "home_office"})
     T.ok(out:find("already exists"), "expected 'already exists': " .. out)
-    World.rooms.library.items["welcome.txt"] = nil
+    World.rooms.home_office.items["welcome.txt"] = nil
 end)
 
 T.test("cp fails for unvisited destination", function()
-    local s = make_state("library", {"library"})
-    local out = Items.cp(s, {"torn_letter.txt", "Cellar"})
+    local s = make_state("home_office", {"home_office"})
+    local out = Items.cp(s, {"draft_email.txt", "Cellar"})
     T.ok(out:find("no such visited"), "expected unvisited-room error: " .. out)
 end)
 
@@ -123,19 +122,19 @@ end)
 T.suite("rm")
 
 T.test("rm without -f asks for confirmation", function()
-    local s = make_state("library")
-    local out = Items.rm(s, {"torn_letter.txt"})
+    local s = make_state("home_office")
+    local out = Items.rm(s, {"draft_email.txt"})
     T.ok(out:find("rm -f") or out:find("undone"), "expected confirmation prompt: " .. out)
-    T.ok(World.rooms.library.items["torn_letter.txt"], "file should still exist without -f")
+    T.ok(World.rooms.home_office.items["draft_email.txt"], "file should still exist without -f")
 end)
 
 T.test("rm -f removes the file", function()
     local s = make_state("cellar")
-    Items.rm(s, {"-f", "wine_inventory.txt"})
-    T.nil_(World.rooms.cellar.items["wine_inventory.txt"], "file should be gone after rm -f")
+    Items.rm(s, {"-f", "cellar_access_log.txt"})
+    T.nil_(World.rooms.cellar.items["cellar_access_log.txt"], "file should be gone after rm -f")
     -- restore
-    World.rooms.cellar.items["wine_inventory.txt"] = {
-        id = "wine_inventory", filename = "wine_inventory.txt", room = "cellar",
+    World.rooms.cellar.items["cellar_access_log.txt"] = {
+        id = "cellar_access_log", filename = "cellar_access_log.txt", room = "cellar",
         content = "restored"
     }
 end)
@@ -157,23 +156,69 @@ T.test("rm -f nonexistent file returns error", function()
 end)
 
 -- -----------------------------------------------------------------------
-T.suite("chmod")
+T.suite("chmod — rooms")
 
-T.test("chmod sets mode on a room", function()
+T.test("chmod sets mode on a room without a lock_code", function()
     Items.chmod(nil, {"000", "cellar"})
     T.eq(World.rooms.cellar.mode, "000")
     World.rooms.cellar.mode = nil
 end)
 
 T.test("chmod sets mode on a file", function()
-    local s = make_state("library")
-    Items.chmod(s, {"000", "torn_letter.txt"})
-    T.eq(World.rooms.library.items["torn_letter.txt"].mode, "000")
-    World.rooms.library.items["torn_letter.txt"].mode = nil
+    local s = make_state("home_office")
+    Items.chmod(s, {"000", "draft_email.txt"})
+    T.eq(World.rooms.home_office.items["draft_email.txt"].mode, "000")
+    World.rooms.home_office.items["draft_email.txt"].mode = nil
 end)
 
 T.test("chmod unknown target returns error", function()
     local s = make_state("foyer")
     local out = Items.chmod(s, {"755", "nothing"})
     T.ok(out:find("no such"), "expected no-such error: " .. out)
+end)
+
+-- -----------------------------------------------------------------------
+T.suite("chmod — lock_code room (Server Room)")
+
+T.test("wrong code leaves the room locked", function()
+    local s = make_state("foyer")
+    local out = Items.chmod(s, {"755", "server_room"})
+    T.eq(World.rooms.server_room.mode, "000")
+    T.ok(out:find("incorrect"), "expected incorrect-code error: " .. out)
+end)
+
+T.test("correct code unlocks the room", function()
+    local s = make_state("foyer")
+    Items.chmod(s, {"foxglove", "server_room"})
+    T.eq(World.rooms.server_room.mode, "foxglove")
+end)
+
+T.test("correct code is case-insensitive", function()
+    local s = make_state("foyer")
+    Items.chmod(s, {"FOXGLOVE", "server_room"})
+    T.eq(World.rooms.server_room.mode, "FOXGLOVE")
+end)
+
+-- -----------------------------------------------------------------------
+T.suite("chmod — file write flag")
+
+T.test("+w makes a file writable", function()
+    local s = make_state("server_room")
+    Items.chmod(s, {"+w", "audit_stream.log"})
+    T.eq(World.rooms.server_room.items["audit_stream.log"].writable, true)
+end)
+
+T.test("-w makes a file read-only", function()
+    local s = make_state("server_room")
+    Items.chmod(s, {"+w", "audit_stream.log"})
+    Items.chmod(s, {"-w", "audit_stream.log"})
+    T.eq(World.rooms.server_room.items["audit_stream.log"].writable, false)
+end)
+
+T.test("octal 444 is read-only, 644 grants owner write", function()
+    local s = make_state("server_room")
+    Items.chmod(s, {"444", "audit_stream.log"})
+    T.eq(World.rooms.server_room.items["audit_stream.log"].writable, false)
+    Items.chmod(s, {"644", "audit_stream.log"})
+    T.eq(World.rooms.server_room.items["audit_stream.log"].writable, true)
 end)

@@ -214,12 +214,17 @@ local function cd(state, args)
                 return "Permission denied. The " .. dest.name .. " is locked."
             end
             if dest.requires then
+                -- The key must be in the room you are leaving *from* (cursor),
+                -- so you can `mv`/`cp` it there first to open the door.
                 local key_present = false
-                for _, it in ipairs(World.get_items_in_room(next_id, true)) do
-                    if it.id == dest.requires then key_present = true; break end
+                for _, it in ipairs(World.get_items_in_room(cursor, true)) do
+                    if it.filename == dest.requires or it.id == dest.requires then
+                        key_present = true
+                        break
+                    end
                 end
                 if not key_present then
-                    return "The door is locked. You need something to enter the "
+                    return "The smart lock blinks red. You need a badge to enter the "
                         .. dest.name .. "."
                 end
             end
