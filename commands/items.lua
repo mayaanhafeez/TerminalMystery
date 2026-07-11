@@ -89,10 +89,24 @@ local function rm(state, args)
     return "rm: " .. fname .. " destroyed."
 end
 
+-- Interpret a chmod mode as a write permission for a FILE.
+-- Returns true (writable), false (read-only), or nil (mode says nothing about write).
+local function mode_writable(mode)
+    if mode == "+w" or mode == "u+w" then return true end
+    if mode == "-w" or mode == "u-w" then return false end
+    if mode:match("^%d%d?%d?$") then
+        return (tonumber(mode:sub(1, 1)) % 4) >= 2  -- owner write bit (value 2)
+    end
+    if mode:match("^[r%-][w%-][x%-]$") then          -- symbolic, e.g. rw- / r--
+        return mode:sub(2, 2) == "w"
+    end
+    return nil
+end
+
 local function chmod(state, args)
     if #args < 2 then
         return "Usage: chmod <mode> <room|file>\n"
-            .. "Example: chmod 000 cellar  or  chmod 755 cellar"
+            .. "Rooms: chmod 000 cellar (lock)   Files: chmod +w notes.txt (writable)"
     end
     local mode        = args[1]
     local target_name = table.concat(args, " ", 2)
@@ -106,7 +120,12 @@ local function chmod(state, args)
     local item = World.get_item(state.current_room, target_name)
     if item then
         item.mode = mode
-        return "chmod: " .. item.filename .. " \xe2\x86\x92 " .. mode
+        local w = mode_writable(mode)
+        if w ~= nil then
+            item.writable = w
+        end
+        local perm = item.writable and "rw-" or "r--"
+        return "chmod: " .. item.filename .. " \xe2\x86\x92 " .. perm
     end
     return "chmod: " .. target_name .. ": no such file or room"
 end

@@ -403,6 +403,7 @@ function M.new_state()
 			cp = true,
 			mv = true,
 			chmod = true,
+			sed = true,
 		},
 		destroyed = {},
 		start_time = nil,
@@ -433,6 +434,10 @@ function M.restore_rooms(saved_rooms)
             item.copied = stub.copied
             item.x = stub.x
             item.y = stub.y
+            item.writable = stub.writable
+            item.edited = stub.edited
+            -- Restore a sed-edited body; unedited files keep the registry content.
+            if stub.content ~= nil then item.content = stub.content end
             room.items[filename] = item
         end
       end

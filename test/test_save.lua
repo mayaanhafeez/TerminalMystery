@@ -193,3 +193,34 @@ T.test("saved room entry contains items table", function()
     local rooms = Save.load_state(FILE).rooms
     T.ok(type(rooms["foyer"].items) == "table", "foyer entry should have an items table")
 end)
+
+-- -----------------------------------------------------------------------
+T.suite("save / load round-trip — sed edits (writable + content)")
+
+T.test("sed -i edit and writable flag survive round-trip", function()
+    reset()
+    local s = World.new_state()
+    s.visited["library"] = true
+    local item = World.rooms.library.items["torn_letter.txt"]
+    item.writable = true
+    item.edited   = true
+    item.content  = "line with \"quotes\"\nsecond\ttab line"
+
+    Save.save_state(s, FILE)
+    World.restore_rooms(Save.load_state(FILE).rooms)
+
+    local r = World.rooms.library.items["torn_letter.txt"]
+    T.eq(r.writable, true)
+    T.eq(r.edited, true)
+    T.eq(r.content, "line with \"quotes\"\nsecond\ttab line",
+        "multi-line content with quotes/tabs must round-trip exactly")
+end)
+
+T.test("unedited files do not persist content (rehydrate from registry)", function()
+    reset()
+    local s = World.new_state()
+    s.visited["library"] = true
+    Save.save_state(s, FILE)
+    local stub = Save.load_state(FILE).rooms["library"].items["torn_letter.txt"]
+    T.nil_(stub.content, "unedited file stub should omit content")
+end)

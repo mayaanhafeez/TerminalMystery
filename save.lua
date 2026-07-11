@@ -25,7 +25,12 @@ local function add_world_items(state, filename)
         room = item.room,
         copied = item.copied,
         x = item.x,
-        y = item.y
+        y = item.y,
+        writable = item.writable,
+        edited = item.edited,
+        -- Only persist content when a `sed -i` edit diverged it from the
+        -- registry; unedited files rehydrate their content from items.lua.
+        content = item.edited and item.content or nil,
       }
     end
   end
@@ -51,7 +56,9 @@ local function convert_state_to_string(state, template) --function taken from ht
     if type(v) == "table" then
       state_string = state_string..convert_state_to_string(v, sub_template)
     elseif type(v) == "string" then
-      state_string = state_string.."\""..v.."\""
+      -- %q escapes quotes, backslashes, and newlines so multi-line evidence
+      -- content (from a `sed -i` edit) round-trips through load() safely.
+      state_string = state_string..string.format("%q", v)
     else
       state_string= state_string..tostring(v)
     end

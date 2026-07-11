@@ -124,7 +124,7 @@ function M.get_completions(state, input)
     if #tokens == 0 or (#tokens == 1 and not has_trailing_space) then
         local all_cmds = {
             "accuse", "cat", "cd", "chmod", "cp", "cwd", "diff",
-            "echo", "exit", "find", "grep", "help", "ls", "mv", "pwd", "rm",
+            "echo", "exit", "find", "grep", "help", "ls", "mv", "pwd", "rm", "sed",
         }
         local result = {}
         for _, cmd in ipairs(all_cmds) do
@@ -174,6 +174,13 @@ function M.get_completions(state, input)
 
     elseif cmd == "cat" or cmd == "rm" then
         return complete_file()
+
+    elseif cmd == "sed" then
+        -- Only offer file names once the s/// script has been typed (2nd non-flag arg).
+        if non_flags >= 1 and not (has_trailing_space and non_flags == 0) then
+            return complete_file()
+        end
+        return {}
 
     elseif cmd == "grep" then
         if has_trailing_space and non_flags == 0 then return {} end

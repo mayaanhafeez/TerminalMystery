@@ -347,4 +347,104 @@ local function diff(state, args)
 	return table.concat(out, "\n")
 end
 
-return { cat = cat, grep = grep, find = find, diff = diff }
+-- Replace occurrences of a literal `pattern` in one line with `replacement`.
+-- Without `global`, only the first occurrence is replaced (sed default).
+-- Returns the rebuilt line and the number of substitutions made.
+local function replace_in_line(line, pattern, replacement, global)
+    local result = {}
+    local pos = 1
+    local n = 0
+    while true do
+        local s, e = line:find(pattern, pos, true)
+        if not s then break end
+        table.insert(result, line:sub(pos, s - 1))
+        table.insert(result, replacement)
+        n = n + 1
+        pos = e + 1
+        if not global then break end
+    end
+    table.insert(result, line:sub(pos))
+    return table.concat(result), n
+end
+
+local function sed(state, args)
+    if #args == 0 then
+        return "Usage: sed [-i] 's/pattern/replacement/[g]' <file>\n"
+            .. "  -i   edit the file in place (needs write permission: chmod +w <file>)"
+    end
+
+    -- Leading flags (only -i is supported).
+    local in_place = false
+    local idx = 1
+    while args[idx] and args[idx]:sub(1, 1) == "-" and args[idx] ~= "-" do
+        if args[idx] == "-i" then
+            in_place = true
+        else
+            return "sed: unknown option: " .. args[idx]
+        end
+        idx = idx + 1
+    end
+
+    local script = args[idx]
+    local path   = args[idx + 1]
+    if not script or not path then
+        return "Usage: sed [-i] 's/pattern/replacement/[g]' <file>"
+    end
+
+    -- Parse s<delim>pattern<delim>replacement<delim>[flags]  (delimiter follows 's').
+    if script:sub(1, 1) ~= "s" then
+        return "sed: only substitution is supported, e.g. sed 's/old/new/'"
+    end
+    local delim = script:sub(2, 2)
+    if delim == "" then
+        return "sed: malformed substitution: " .. script
+    end
+    local body   = script:sub(3)
+    local first  = body:find(delim, 1, true)
+    local second = first and body:find(delim, first + 1, true)
+    if not first or not second then
+        return "sed: malformed substitution: " .. script
+    end
+    local pattern     = body:sub(1, first - 1)
+    local replacement = body:sub(first + 1, second - 1)
+    local global      = body:sub(second + 1):find("g", 1, true) ~= nil
+    if pattern == "" then
+        return "sed: empty pattern"
+    end
+
+    local room_id, fname, err = World.resolve_file_path(state.current_room, path)
+    if err then return "sed: " .. err end
+    if not fname then return "sed: " .. path .. ": is a directory" end
+    local item = World.get_item(room_id, fname)
+    if not item then return "sed: " .. path .. ": no such file" end
+    if item.mode == "000" then
+        return "sed: " .. fname .. ": Permission denied. That document is restricted."
+    end
+
+    local total = 0
+    local out_lines = {}
+    for line in (item.content .. "\n"):gmatch("([^\n]*)\n") do
+        local newline, n = replace_in_line(line, pattern, replacement, global)
+        total = total + n
+        table.insert(out_lines, newline)
+    end
+    local new_content = table.concat(out_lines, "\n")
+
+    if in_place then
+        if not item.writable then
+            return "sed: cannot write " .. fname .. ": Permission denied\n"
+                .. "     (try: chmod +w " .. fname .. ")"
+        end
+        if total == 0 then
+            return "sed: " .. fname .. ": no occurrences of \"" .. pattern .. "\"; file unchanged"
+        end
+        item.content = new_content
+        item.edited  = true
+        return "sed: edited " .. fname .. " in place ("
+            .. total .. " substitution" .. (total == 1 and "" or "s") .. ")"
+    end
+
+    return new_content
+end
+
+return { cat = cat, grep = grep, find = find, diff = diff, sed = sed }
