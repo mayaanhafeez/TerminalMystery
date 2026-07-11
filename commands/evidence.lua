@@ -23,6 +23,7 @@ local function cat(state, args)
 		state.files_read[room_id .. "/" .. fname] = true
 		World.check_unlocks(state)
 		state.popup_item = item
+		state.popup_page = 1
 		return item.content
 	end
 	-- Cross-room path was explicit: just report missing

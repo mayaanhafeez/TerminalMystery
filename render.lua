@@ -2,6 +2,7 @@
 -- All drawing. Two panels (terminal left, room-view right) + status bar + win overlay.
 
 local World = require("world")
+local utf8 = require("utf8")
 
 local M = {}
 
@@ -99,6 +100,9 @@ M.font_handwriting = nil -- loaded from handwriting.ttf if present
 M.font_handwriting_large = nil -- large variant for titles
 M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
 M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
+M.popup_prev_rect = nil -- previous-page hit rect (paginated popups); nil otherwise
+M.popup_next_rect = nil -- next-page hit rect (paginated popups); nil otherwise
+M.popup_page_count = 1 -- number of pages in the current popup (1 = no pagination)
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
@@ -361,9 +365,22 @@ local function draw_terminal(state, term)
 	local px = M.PAD + M.font_term:getWidth(prompt)
 	love.graphics.print(term.input, px, prompt_y)
 	if term.cursor_visible then
-		local cx = px + M.font_term:getWidth(term.input)
+		-- Block cursor at term.cursor_pos (a byte offset). When it sits over a
+		-- character, redraw that glyph in the background colour so it stays legible.
+		local pos = term.cursor_pos or #term.input
+		local cx = px + M.font_term:getWidth(term.input:sub(1, pos))
+		local after = term.input:sub(pos + 1)
+		local nextchar = ""
+		if after ~= "" then
+			nextchar = after:sub(1, (utf8.offset(after, 2) or (#after + 1)) - 1)
+		end
+		local cw = (nextchar ~= "") and M.font_term:getWidth(nextchar) or M.font_term:getWidth("M")
 		love.graphics.setColor(C.term_user)
-		love.graphics.rectangle("fill", cx, prompt_y, M.font_term:getWidth("M"), M.font_term:getHeight())
+		love.graphics.rectangle("fill", cx, prompt_y, cw, M.font_term:getHeight())
+		if nextchar ~= "" then
+			love.graphics.setColor(C.term_bg)
+			love.graphics.print(nextchar, cx, prompt_y)
+		end
 	end
 
 	if term.scroll > 0 then
@@ -794,9 +811,83 @@ local function draw_win_screen(state, best)
 	end
 end
 
+local POPUP_NAV_H = 26 -- reserved strip at the bottom of a paginated popup body
+
+-- Draw a compact vertical pager  [ up-triangle ]  page / total  [ down-triangle ]
+-- centered on (x, y, w). Up = previous page, down = next page. Triangles are
+-- drawn as polygons so they render regardless of font glyph coverage. Publishes
+-- the up/down hit rects for the input layer. `color` is a {r,g,b} table.
+local function draw_page_nav(x, y, w, page, total, color)
+	love.graphics.setFont(M.font)
+	local lh = M.font:getHeight()
+	local cy = y + POPUP_NAV_H / 2
+	local tri = 6
+	local gap = 16
+	local label = page .. " / " .. total
+	local lw = M.font:getWidth(label)
+	local r, g, b = color[1], color[2], color[3]
+
+	local total_w = tri * 2 + gap + lw + gap + tri * 2
+	local sx = x + (w - total_w) / 2
+	local up_cx = sx + tri
+	local dn_cx = up_cx + tri + gap + lw + gap + tri
+
+	love.graphics.setColor(r, g, b, page > 1 and 1 or 0.30)
+	love.graphics.polygon("fill", up_cx, cy - tri, up_cx - tri, cy + tri, up_cx + tri, cy + tri)
+	love.graphics.setColor(r, g, b)
+	love.graphics.print(label, up_cx + tri + gap, cy - lh / 2)
+	love.graphics.setColor(r, g, b, page < total and 1 or 0.30)
+	love.graphics.polygon("fill", dn_cx, cy + tri, dn_cx - tri, cy - tri, dn_cx + tri, cy - tri)
+
+	M.popup_prev_rect = { x = up_cx - tri - 8, y = cy - tri - 8, w = tri * 2 + 16, h = tri * 2 + 16 }
+	M.popup_next_rect = { x = dn_cx - tri - 8, y = cy - tri - 8, w = tri * 2 + 16, h = tri * 2 + 16 }
+end
+
+-- Render `content` into (x, y, w, h) with pagination. When it fits on one page
+-- it draws exactly as an unpaginated printf did; when it overflows, it reserves
+-- a nav strip at the bottom, draws the current page, and shows a Prev/Next bar.
+-- The current page comes from state.popup_page (default 1), clamped to the count.
+local function draw_popup_body(state, content, font, x, y, w, h, text_color, nav_color)
+	love.graphics.setFont(font)
+	local line_h = font:getHeight()
+	local _, wrapped = font:getWrap(content, w)
+
+	-- Does it fit without a nav strip? If so, render it exactly as before.
+	if #wrapped <= math.max(1, math.floor(h / line_h)) then
+		M.popup_page_count = 1
+		M.popup_prev_rect = nil
+		M.popup_next_rect = nil
+		love.graphics.setScissor(x, y, w, h)
+		love.graphics.setColor(text_color)
+		love.graphics.printf(content, x, y, w, "left")
+		love.graphics.setScissor()
+		return
+	end
+
+	local body_h = h - POPUP_NAV_H
+	local per = math.max(1, math.floor(body_h / line_h))
+	local total = math.max(1, math.ceil(#wrapped / per))
+	local page = math.max(1, math.min(math.floor(state.popup_page or 1), total))
+	M.popup_page_count = total
+
+	love.graphics.setScissor(x, y, w, body_h)
+	love.graphics.setColor(text_color)
+	local start_i = (page - 1) * per
+	local yy = y
+	for i = start_i + 1, math.min(start_i + per, #wrapped) do
+		love.graphics.printf(wrapped[i], x, yy, w, "left")
+		yy = yy + line_h
+	end
+	love.graphics.setScissor()
+
+	draw_page_nav(x, y + body_h, w, page, total, nav_color)
+end
+
 local function draw_popup(state)
 	if not state.popup_item then
 		M.popup_close_rect = nil
+		M.popup_prev_rect = nil
+		M.popup_next_rect = nil
 		return
 	end
 
@@ -858,11 +949,9 @@ local function draw_popup(state)
 		love.graphics.setLineWidth(1)
 		love.graphics.line(parch_x + 8, divider_y, parch_x + parch_w - 8, divider_y)
 
-		love.graphics.setScissor(parch_x, parch_y, parch_w, parch_h)
-		love.graphics.setFont(M.font_handwriting or M.font)
-		love.graphics.setColor(0.18, 0.12, 0.06)
-		love.graphics.printf(item.content, parch_x + 12, divider_y + 8, parch_w - 24, "left")
-		love.graphics.setScissor()
+		draw_popup_body(state, item.content, M.font_handwriting or M.font,
+			parch_x + 12, divider_y + 8, parch_w - 24, (parch_y + parch_h) - (divider_y + 8) - 6,
+			{ 0.18, 0.12, 0.06 }, { 0.35, 0.20, 0.08 })
 		love.graphics.setFont(M.font)
 
 		local btn_x = doc_x + (DOC_W - BTN_W) / 2
@@ -922,11 +1011,9 @@ local function draw_popup(state)
 		love.graphics.setLineWidth(1)
 		love.graphics.line(parch_x + 8, divider_y, parch_x + parch_w - 8, divider_y)
 
-		love.graphics.setScissor(parch_x, parch_y, parch_w, parch_h)
-		love.graphics.setFont(M.font_handwriting or M.font)
-		love.graphics.setColor(0.18, 0.12, 0.06)
-		love.graphics.printf(item.content, parch_x + 12, divider_y + 8, parch_w - 24, "left")
-		love.graphics.setScissor()
+		draw_popup_body(state, item.content, M.font_handwriting or M.font,
+			parch_x + 12, divider_y + 8, parch_w - 24, (parch_y + parch_h) - (divider_y + 8) - 6,
+			{ 0.18, 0.12, 0.06 }, { 0.35, 0.20, 0.08 })
 		love.graphics.setFont(M.font)
 
 		local btn_x = doc_x + (DOC_W - BTN_W) / 2
@@ -934,6 +1021,62 @@ local function draw_popup(state)
 		love.graphics.setColor(fr * 1.15, fg * 1.15, fb * 1.15)
 		love.graphics.rectangle("fill", btn_x, btn_y, BTN_W, BTN_H, 4, 4)
 		love.graphics.setColor(0.97, 0.90, 0.72)
+		love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
+		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
+	elseif sprite == "laptop" then
+		-- Digital evidence (logs, reports, on-screen files): an enlarged laptop
+		-- with the file rendered onto its screen in a terminal style. No
+		-- handwriting font — that is reserved for genuinely hand-written notes.
+		local POP = 640
+		local pop_x = (M.W - POP) / 2
+		local pop_y = (M.H - POP) / 2
+
+		love.graphics.setColor(0, 0, 0, 0.80)
+		love.graphics.rectangle("fill", 0, 0, M.W, M.H)
+
+		-- Laptop art first (screen occupies roughly the top ~57% of the sprite).
+		local spr = M.sprites.laptop
+		if spr then
+			love.graphics.setColor(1, 1, 1)
+			love.graphics.draw(spr.img, pop_x, pop_y, 0,
+				POP / spr.img:getWidth(), POP / spr.img:getHeight())
+		end
+
+		-- Screen glass within the laptop art, measured from laptop.png (64x64):
+		-- x 9..55, y 5..33  ->  fractions below. The dark fill covers the glass
+		-- exactly so the terminal text lines up with the laptop's screen.
+		local scr_x = pop_x + POP * 0.141
+		local scr_y = pop_y + POP * 0.078
+		local scr_w = POP * 0.719
+		local scr_h = POP * 0.438
+		love.graphics.setColor(0.05, 0.07, 0.10, 0.94)
+		love.graphics.rectangle("fill", scr_x, scr_y, scr_w, scr_h)
+		if not spr then
+			love.graphics.setColor(0.16, 0.18, 0.22)
+			love.graphics.setLineWidth(2)
+			love.graphics.rectangle("line", scr_x, scr_y, scr_w, scr_h)
+		end
+
+		-- Filename header + divider, then the body — all in the terminal font.
+		local pad = 16
+		local line_h = M.font:getHeight()
+		love.graphics.setFont(M.font)
+		love.graphics.setColor(0.55, 0.95, 0.55) -- terminal-green filename
+		love.graphics.print(item.filename, scr_x + pad, scr_y + pad)
+		love.graphics.setColor(0.30, 0.55, 0.30)
+		love.graphics.setLineWidth(1)
+		local div_y = scr_y + pad + line_h + 6
+		love.graphics.line(scr_x + pad, div_y, scr_x + scr_w - pad, div_y)
+
+		draw_popup_body(state, item.content, M.font,
+			scr_x + pad, div_y + 10, scr_w - pad * 2, (scr_y + scr_h) - (div_y + 10) - 4,
+			{ 0.82, 0.88, 0.84 }, { 0.55, 0.85, 0.60 })
+
+		local btn_x = pop_x + (POP - BTN_W) / 2
+		local btn_y = pop_y + POP - BTN_H - 6
+		love.graphics.setColor(0.16, 0.20, 0.26)
+		love.graphics.rectangle("fill", btn_x, btn_y, BTN_W, BTN_H, 4, 4)
+		love.graphics.setColor(0.85, 0.90, 0.86)
 		love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
 		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
 	elseif sprite == "slack" then
@@ -971,10 +1114,9 @@ local function draw_popup(state)
 		love.graphics.setColor(0.10, 0.09, 0.13, 0.72)
 		love.graphics.rectangle("fill", col_x - 8, col_y - 6, col_w + 16, col_h + 12, 4, 4)
 
-		love.graphics.setScissor(col_x - 8, col_y - 6, col_w + 16, col_h + 12)
-		love.graphics.setColor(0.90, 0.91, 0.94)
-		love.graphics.printf(item.content, col_x, col_y, col_w, "left")
-		love.graphics.setScissor()
+		draw_popup_body(state, item.content, M.font,
+			col_x, col_y, col_w, col_h,
+			{ 0.90, 0.91, 0.94 }, { 0.80, 0.82, 0.92 })
 
 		local btn_x = pop_x + (POP_W - BTN_W) / 2
 		local btn_y = pop_y + POP_H - BTN_H - 12
@@ -1029,10 +1171,9 @@ local function draw_popup(state)
 		love.graphics.setColor(0.30, 0.25, 0.40, 0.40)
 		love.graphics.setLineWidth(1)
 		love.graphics.rectangle("line", box_x, box_y, box_w, box_h, 4, 4)
-		love.graphics.setScissor(box_x, box_y, box_w, box_h)
-		love.graphics.setColor(0.78, 0.74, 0.66)
-		love.graphics.printf(item.content, box_x + 8, box_y + 8, box_w - 16, "left")
-		love.graphics.setScissor()
+		draw_popup_body(state, item.content, M.font,
+			box_x + 8, box_y + 8, box_w - 16, box_h - 16,
+			{ 0.78, 0.74, 0.66 }, { 0.72, 0.68, 0.82 })
 
 		local btn_x = pop_x + (POP_W - BTN_W) / 2
 		local btn_y = pop_y + POP_H - BTN_H - PAD

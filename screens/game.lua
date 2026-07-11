@@ -11,15 +11,16 @@ local best
 local cursor_timer = 0
 local INTRO = [[=== TERMINAL MYSTERY ===
 
-It is the autumn of 1923. Lord Edmund Ashworth lies dead in his
-Study at Ashworth Manor — a single drop of foam at the corner
-of his mouth, a half-finished glass of brandy on the desk.
+Strictly.ai just closed its Series C. At the launch party in the
+CEO's house, Arjun Mehta — VP of AI Research — is found dead in
+the Den, an empty bottle of kombucha beside him.
 
-The constabulary is two hours away by motorcar. You are the
-nearest investigator. The killer is still in the house.
+Legal wants it kept quiet until you've had a look. Four engineers
+were in range of the Den during the window, and one of them is
+still here.
 
-You stand in the Foyer. Type `help` to see what you can do.
-When you are certain, type `accuse <name>` to make your case.]]
+You stand in the Entrance Hall. Type `help` to see what you can
+do. When you are certain, type `accuse <name>` to make your case.]]
 
 local function load_best()
 	if not love.filesystem.getInfo("scores.lua") then
@@ -121,6 +122,7 @@ local function execute_input()
 	clear_tab_state()
 	local input = term.input
 	term.input = ""
+	term.cursor_pos = 0
 	term.scroll = 0
 	term.history_index = nil
 
@@ -177,7 +179,9 @@ function M.text_input(t)
 		return
 	end -- handled in keypressed
 	clear_tab_state()
-	term.input = term.input .. t
+	local pos = term.cursor_pos or #term.input
+	term.input = term.input:sub(1, pos) .. t .. term.input:sub(pos + 1)
+	term.cursor_pos = pos + #t
 	cursor_timer = 0
 	term.cursor_visible = true
 end
@@ -186,6 +190,10 @@ function M.keypressed(key)
 	if state.popup_item then
 		if key == "escape" then
 			state.popup_item = nil
+		elseif key == "up" or key == "pageup" then
+			state.popup_page = math.max(1, (state.popup_page or 1) - 1)
+		elseif key == "down" or key == "pagedown" or key == "space" then
+			state.popup_page = math.min(Render.popup_page_count or 1, (state.popup_page or 1) + 1)
 		end
 		return
 	end
@@ -224,36 +232,65 @@ function M.keypressed(key)
 				term.input = candidates[1]
 			end
 		end
+		term.cursor_pos = #term.input
 		cursor_timer = 0
 		term.cursor_visible = true
 	elseif key == "backspace" then
 		clear_tab_state()
+		local pos = term.cursor_pos or #term.input
 		if love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl") then
-			local s = term.input:gsub("%s*%S+%s*$", "")
-			if s == term.input then
+			-- delete the word before the cursor
+			local left = term.input:sub(1, pos)
+			local s = left:gsub("%s*%S+%s*$", "")
+			if s == left then
 				s = ""
 			end
-			term.input = s
-			cursor_timer = 0
-			term.cursor_visible = true
-		else
-			local off = utf8.offset(term.input, -1)
-			if off then
-				term.input = term.input:sub(1, off - 1)
-			end
+			term.input = s .. term.input:sub(pos + 1)
+			term.cursor_pos = #s
+		elseif pos > 0 then
+			-- delete the character before the cursor
+			local left = term.input:sub(1, pos)
+			local off = utf8.offset(left, -1) or 1
+			term.input = left:sub(1, off - 1) .. term.input:sub(pos + 1)
+			term.cursor_pos = off - 1
 		end
+		cursor_timer = 0
+		term.cursor_visible = true
 	elseif key == "w" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
 		clear_tab_state()
-		local s = term.input:gsub("%s*%S+%s*$", "")
-		if s == term.input then
+		local pos = term.cursor_pos or #term.input
+		local left = term.input:sub(1, pos)
+		local s = left:gsub("%s*%S+%s*$", "")
+		if s == left then
 			s = ""
 		end
-		term.input = s
+		term.input = s .. term.input:sub(pos + 1)
+		term.cursor_pos = #s
 		cursor_timer = 0
 		term.cursor_visible = true
 	elseif key == "u" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
 		clear_tab_state()
-		term.input = ""
+		local pos = term.cursor_pos or #term.input
+		term.input = term.input:sub(pos + 1)
+		term.cursor_pos = 0
+		cursor_timer = 0
+		term.cursor_visible = true
+	elseif key == "left" then
+		clear_tab_state()
+		local pos = term.cursor_pos or #term.input
+		if pos > 0 then
+			local off = utf8.offset(term.input:sub(1, pos), -1) or 1
+			term.cursor_pos = off - 1
+		end
+		cursor_timer = 0
+		term.cursor_visible = true
+	elseif key == "right" then
+		clear_tab_state()
+		local pos = term.cursor_pos or #term.input
+		if pos < #term.input then
+			local off = utf8.offset(term.input:sub(pos + 1), 2)
+			term.cursor_pos = off and (pos + off - 1) or #term.input
+		end
 		cursor_timer = 0
 		term.cursor_visible = true
 	elseif key == "up" then
@@ -265,6 +302,7 @@ function M.keypressed(key)
 				term.history_index = math.max(1, term.history_index - 1)
 			end
 			term.input = term.history[term.history_index]
+			term.cursor_pos = #term.input
 		end
 	elseif key == "down" then
 		clear_tab_state()
@@ -276,6 +314,7 @@ function M.keypressed(key)
 			else
 				term.input = term.history[term.history_index]
 			end
+			term.cursor_pos = #term.input
 		end
 	elseif key == "pageup" then
 		term.scroll = term.scroll + 5
@@ -301,11 +340,18 @@ function M.keypressed(key)
 end
 
 function M.mousepressed(x, y, button)
-	if button == 1 and state.popup_item and Render.popup_close_rect then
-		local r = Render.popup_close_rect
-		if x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h then
-			state.popup_item = nil
-		end
+	if button ~= 1 or not state.popup_item then
+		return
+	end
+	local function hit(r)
+		return r and x >= r.x and x <= r.x + r.w and y >= r.y and y <= r.y + r.h
+	end
+	if hit(Render.popup_prev_rect) then
+		state.popup_page = math.max(1, (state.popup_page or 1) - 1)
+	elseif hit(Render.popup_next_rect) then
+		state.popup_page = math.min(Render.popup_page_count or 1, (state.popup_page or 1) + 1)
+	elseif hit(Render.popup_close_rect) then
+		state.popup_item = nil
 	end
 end
 
@@ -315,6 +361,7 @@ function M.start_new()
 		messages = {},
 		lines = {},
 		input = "",
+		cursor_pos = 0,
 		scroll = 0,
 		cursor_visible = true,
 		history = {},
@@ -349,6 +396,7 @@ function M.start_from_save(save_data)
     messages = {},
     lines = {},
     input = "",
+    cursor_pos = 0,
     scroll = 0,
     cursor_visible = true,
     history = {},

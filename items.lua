@@ -28,18 +28,57 @@ Find out what happened tonight, quietly, and come to me first.
 
 	guest_list = {
 		sprite  = "scroll",
+		popup   = "laptop",
 		content = [[Strictly.ai — Series C Launch Party
 Guest manifest, October 14th:
 
-  Ayesha Raza     — Principal Engineer      (Emacs; runs #balatro)
-  Wei Zhao        — Staff Engineer          (Vim; office Balatro #1)
-  Priya Raghavan  — Senior Systems Engineer (Rust; anti-Jess)
-  Daniel Lin      — Head of Infrastructure  (VSCode, default settings)
+  Ayesha Raza     — Principal Engineer
+  Wei Zhao        — Staff Engineer
+  Priya Raghavan  — Senior Systems Engineer
+  Daniel Lin      — Head of Infrastructure
 
 Catering staff dismissed at 9:00 PM per contract. Arjun Mehta
 (VP, AI Research) last seen heading to the Den around 9:55 PM.
 
-Corp handles are first-initial + last name. Daniel Lin is `dlin`.]],
+(A fuller personnel file is on the laptop, if you can find it.)]],
+	},
+
+	personnel_dossier = {
+		sprite  = "book",
+		popup   = "laptop",
+		hidden  = true,
+		content = [[=== STRICTLY.AI — CONFIDENTIAL PERSONNEL FILE ===
+        Internal use only. Do not distribute.
+
+Network handles are first-initial + last name.
+
+----------------------------------------------------------
+AYESHA RAZA   (araza)
+  Principal Engineer. Emacs since her PhD and very online
+  about it; runs the internal #balatro channel. Was passed
+  over for the Staff promotion that went to Arjun. Vocal
+  critic of "the AI hype crowd."
+
+WEI ZHAO   (wzhao)
+  Staff Engineer. Vim absolutist, currently #1 on the office
+  Balatro leaderboard. Had legitimate access to the Den
+  earlier to fix the AV rig for Trent's demo.
+
+PRIYA RAGHAVAN   (praghavan)
+  Senior Systems Engineer. Rust evangelist, loudly anti-Jess
+  ("AI-generated code is a war crime"). Deep into supplement
+  stacks; keeps a personal creatine-cycle repo.
+
+DANIEL LIN   (dlin)
+  Head of Infrastructure. VSCode, default settings. Quiet;
+  stays out of every editor and language fight. Standing
+  excuse for vanishing is "grinding a solo Balatro run."
+  Holds full admin over billing and provisioning (dlin-admin).
+----------------------------------------------------------
+
+Victim: Arjun Mehta (amehta), VP of AI Research and the
+internal face of JessAI. Last seen heading to the Den at
+about 9:55 PM.]],
 	},
 
 	slack_general = {
@@ -73,6 +112,7 @@ ayesha  10:16 PM
 
 	draft_email = {
 		sprite  = "scroll",
+		popup   = "laptop",
 		content = [==[An unsent draft is open on the desktop, addressed to Trent:
 
   Trent —
@@ -86,6 +126,7 @@ ayesha  10:16 PM
 
 	repo_log = {
 		sprite  = "book",
+		popup   = "laptop",
 		content = [[Recently-cloned repositories on this machine:
 
   jessai-agent-core
@@ -124,6 +165,7 @@ Time of death: 10:05–10:20 PM.]],
 
 	party_statements = {
 		sprite  = "scroll",
+		popup   = "laptop",
 		content = [[Statements taken in the first hour:
 
 Ayesha Raza:
@@ -150,6 +192,7 @@ Only Daniel's account has no one to confirm it.]],
 
 	calendar_note = {
 		sprite  = "scroll",
+		popup   = "laptop",
 		content = [[A reminder is still lit on Arjun's phone on the side table:
 
   10:00 PM — Meet D. in the Den. Show him the billing
@@ -161,6 +204,7 @@ Only Daniel's account has no one to confirm it.]],
 
 	draft_email_continued = {
 		sprite  = "scroll",
+		popup   = "laptop",
 		content = [[The rest of the torn email, crumpled in the wastebasket:
 
   ...doesn't correspond to anything in our approved vendor list.
@@ -205,6 +249,7 @@ A single balled-up nitrile glove is wedged behind it.]],
 
 	cellar_access_log = {
 		sprite  = "book",
+		popup   = "laptop",
 		content = [[Wine-cellar smart-lock scan log:
 
   9:44 PM   badge scan: staff (catering, exiting)
@@ -218,6 +263,7 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 
 	deploy_log = {
 		sprite  = "book",
+		popup   = "laptop",
 		content = [[GitHub Actions — run history, repo `hotfix-oct14`:
 
   triggered by: praghavan
@@ -247,6 +293,7 @@ this keyboard for the entire murder window. She's clear.]],
 
 	billing_audit = {
 		sprite  = "book",
+		popup   = "laptop",
 		content = [[Q3 Infrastructure Cost Review (finance draft):
 
   ~$310,000 in compute spend routed through a vendor account,
@@ -259,6 +306,7 @@ This is the money Arjun found.]],
 
 	dosage_log = {
 		sprite  = "book",
+		popup   = "laptop",
 		content = [[Personal spreadsheet, "HRV Stack — n=1":
 
   A week-by-week self-experiment log. Among the usual magnesium
@@ -292,6 +340,7 @@ Arjun.]],
 
 	audit_stream = {
 		sprite   = "book",
+		popup    = "laptop",
 		filename = "audit_stream.log",
 		content  = [[# facility access stream — raw
 # infra service account 'svc-agent' provisioned by dlin, Oct 14

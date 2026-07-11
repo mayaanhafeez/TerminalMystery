@@ -67,6 +67,7 @@ logged into Slack.]],
 			{ ref = "welcome", x = 0.22, y = 0.30 },
 			{ ref = "guest_list", x = 0.55, y = 0.45 },
 			{ ref = "slack_general", x = 0.82, y = 0.62 },
+			{ ref = "personnel_dossier", x = 0.40, y = 0.72 },
 		},
     tiles = {
       legend = {
