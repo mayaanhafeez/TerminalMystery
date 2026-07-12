@@ -31,6 +31,10 @@ local MIN_TERM_W = 280
 local ROOM_TILT = 0.12
 local ROOM_WALL_FRAC = 3 / 9 -- top 3 of the 9 grid rows are wall
 local TILT_GX, TILT_GY = 10, 18 -- GY is a multiple of 9 so the waist lands on a row
+-- Side-wall shading for the tilt's waist gaps (defined here so M.update_room_mesh
+-- can see them — the C palette is declared later in the file).
+local SIDEWALL_NEAR = { 0.90, 0.90, 0.92 } -- outer/near edge (light)
+local SIDEWALL_DEEP = { 0.52, 0.52, 0.58 } -- deep waist corner (shadow)
 
 M.W = 1280
 M.H = 800
@@ -100,6 +104,21 @@ function M.update_room_mesh()
 			M.room_mesh:setVertex(tilt_idx(i, j), lx + fx * (rx - lx), ty, fx, t)
 		end
 	end
+
+	-- Side-wall triangles filling the waist gaps. Each is (top-corner, waist,
+	-- bottom-corner) — matching the room mesh's straight outer edge exactly.
+	-- Light at the outer (near) edge, shadowed at the waist (the deep corner).
+	if M.sidewall_mesh then
+		local wy = y + ROOM_WALL_FRAC * h
+		local e = SIDEWALL_NEAR -- outer/near edge (light)
+		local d = SIDEWALL_DEEP -- waist/far corner (shadowed)
+		M.sidewall_mesh:setVertex(1, x, y, 0, 0, e[1], e[2], e[3], 1)
+		M.sidewall_mesh:setVertex(2, x, y + h, 0, 0, e[1], e[2], e[3], 1)
+		M.sidewall_mesh:setVertex(3, x + waist, wy, 0, 0, d[1], d[2], d[3], 1)
+		M.sidewall_mesh:setVertex(4, x + w, y, 0, 0, e[1], e[2], e[3], 1)
+		M.sidewall_mesh:setVertex(5, x + w, y + h, 0, 0, e[1], e[2], e[3], 1)
+		M.sidewall_mesh:setVertex(6, x + w - waist, wy, 0, 0, d[1], d[2], d[3], 1)
+	end
 end
 
 -- Palette
@@ -111,7 +130,6 @@ local C = {
 	term_user = { 0.85, 0.95, 0.85 },
 	prompt = { 0.95, 0.75, 0.25 },
 	system = { 0.95, 0.80, 0.40 },
-	room_wall = { 0.90, 0.90, 0.92 }, -- side-wall fill behind the tilted room
 	map_bg = { 0.10, 0.12, 0.16 },
 	map_border = { 0.16, 0.18, 0.22 },
 	room_unvisited = { 0.18, 0.20, 0.24 },
@@ -153,6 +171,7 @@ M.popup_next_rect = nil -- next-page hit rect (paginated popups); nil otherwise
 M.popup_page_count = 1 -- number of pages in the current popup (1 = no pagination)
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
 M.room_mesh = nil -- trapezoid mesh the room canvas is drawn through (tilt)
+M.sidewall_mesh = nil -- shaded triangles filling the side gaps of the tilt
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
 M.tile_cache = {}
@@ -323,6 +342,11 @@ function M.load()
 	end
 	M.room_mesh:setVertexMap(map)
 	M.room_mesh:setTexture(M.room_canvas)
+
+	-- Two shaded triangles that fill the concave "waist" gaps down the sides, so
+	-- they read as the room's side walls rather than blank notches. Untextured;
+	-- positions and per-vertex colours are set in M.update_room_mesh.
+	M.sidewall_mesh = love.graphics.newMesh(6, "triangles", "dynamic")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -1285,13 +1309,12 @@ function M.draw(state, term, best)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
 
-	-- Fill the room panel with a wall colour first: the trapezoid tilt leaves
-	-- triangular gaps down the sides, and this makes them read as side walls.
-	love.graphics.setColor(C.room_wall)
+	-- Fill the room panel with a wall colour first (safety backdrop), then the
+	-- shaded side-wall triangles that fill the tilt's waist gaps, then the room.
+	love.graphics.setColor(SIDEWALL_NEAR)
 	love.graphics.rectangle("fill", M.room_x, M.room_y, M.room_w, M.room_h)
-
-	-- Blit the room canvas through the tilt mesh, then the flat banner.
 	love.graphics.setColor(1, 1, 1)
+	love.graphics.draw(M.sidewall_mesh)
 	love.graphics.draw(M.room_mesh)
 	draw_room_banner(state)
 
