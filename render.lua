@@ -19,23 +19,6 @@ local ROOM_VH = 780
 local ROOM_ASPECT = ROOM_VW / ROOM_VH
 local MIN_TERM_W = 280
 
--- Tilt: the room canvas is drawn through a trapezoid mesh so it reads as a
--- top-down view seen slightly from one side. ROOM_TILT is the fraction each
--- top corner is pulled inward (0 = flat). TILT_GX/GY subdivide the mesh so the
--- texture maps smoothly instead of creasing along a single diagonal.
--- Perspective "filter": the room grid is split into a back wall (the top
--- ROOM_WALL_FRAC of the rows) and the floor (the rest). The wall warps into an
--- upward-facing trapezoid ( \  / ) and the floor into a downward one ( /  \ ),
--- meeting at a pinched waist. ROOM_TILT is the horizontal inset at that waist
--- (0 = flat). The tile art itself (wall vs floor tiles) is set in world.lua.
-local ROOM_TILT = 0.12
-local ROOM_WALL_FRAC = 3 / 9 -- top 3 of the 9 grid rows are wall
-local TILT_GX, TILT_GY = 10, 18 -- GY is a multiple of 9 so the waist lands on a row
--- Side-wall shading for the tilt's waist gaps (defined here so M.update_room_mesh
--- can see them — the C palette is declared later in the file).
-local SIDEWALL_NEAR = { 0.90, 0.90, 0.92 } -- outer/near edge (light)
-local SIDEWALL_DEEP = { 0.52, 0.52, 0.58 } -- deep waist corner (shadow)
-
 M.W = 1280
 M.H = 800
 M.STATUS_H = 28
@@ -69,56 +52,6 @@ function M.resize(w, h)
 	M.MAP_W = room_w
 	M.room_x = M.TERM_W
 	M.room_y = 0
-	M.update_room_mesh()
-end
-
-local function tilt_idx(i, j)
-	return j * (TILT_GX + 1) + i + 1
-end
-
--- Position the tilt mesh vertices over the current room rect as a trapezoid:
--- the top edge is inset by ROOM_TILT on each side, the bottom stays full width.
-function M.update_room_mesh()
-	if not M.room_mesh then
-		return
-	end
-	local x, y, w, h = M.room_x, M.room_y, M.room_w, M.room_h
-	local waist = w * ROOM_TILT -- max horizontal inset, at the wall/floor seam
-	for j = 0, TILT_GY do
-		local t = j / TILT_GY
-		local ty = y + t * h
-		-- inset is 0 at the top (wide wall top) and bottom (wide floor front),
-		-- peaking at the waist where wall meets floor:
-		--   wall  ( \  / ):  0 -> waist   over t in [0, WALL_FRAC]
-		--   floor ( /  \ ):  waist -> 0   over t in [WALL_FRAC, 1]
-		local inset
-		if t <= ROOM_WALL_FRAC then
-			inset = waist * (t / ROOM_WALL_FRAC)
-		else
-			inset = waist * (1 - (t - ROOM_WALL_FRAC) / (1 - ROOM_WALL_FRAC))
-		end
-		local lx = x + inset
-		local rx = x + w - inset
-		for i = 0, TILT_GX do
-			local fx = i / TILT_GX
-			M.room_mesh:setVertex(tilt_idx(i, j), lx + fx * (rx - lx), ty, fx, t)
-		end
-	end
-
-	-- Side-wall triangles filling the waist gaps. Each is (top-corner, waist,
-	-- bottom-corner) — matching the room mesh's straight outer edge exactly.
-	-- Light at the outer (near) edge, shadowed at the waist (the deep corner).
-	if M.sidewall_mesh then
-		local wy = y + ROOM_WALL_FRAC * h
-		local e = SIDEWALL_NEAR -- outer/near edge (light)
-		local d = SIDEWALL_DEEP -- waist/far corner (shadowed)
-		M.sidewall_mesh:setVertex(1, x, y, 0, 0, e[1], e[2], e[3], 1)
-		M.sidewall_mesh:setVertex(2, x, y + h, 0, 0, e[1], e[2], e[3], 1)
-		M.sidewall_mesh:setVertex(3, x + waist, wy, 0, 0, d[1], d[2], d[3], 1)
-		M.sidewall_mesh:setVertex(4, x + w, y, 0, 0, e[1], e[2], e[3], 1)
-		M.sidewall_mesh:setVertex(5, x + w, y + h, 0, 0, e[1], e[2], e[3], 1)
-		M.sidewall_mesh:setVertex(6, x + w - waist, wy, 0, 0, d[1], d[2], d[3], 1)
-	end
 end
 
 -- Palette
@@ -162,6 +95,7 @@ M.font = nil -- room view, popup, win screen (fixed size)
 M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
 M.font_big = nil
 M.font_small = nil -- used for minimap labels
+M.font_mono = nil -- computer-log font (laptop/chat popups); loaded from font_mono.ttf
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
 M.font_handwriting_large = nil -- large variant for titles
 M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
@@ -170,8 +104,6 @@ M.popup_prev_rect = nil -- previous-page hit rect (paginated popups); nil otherw
 M.popup_next_rect = nil -- next-page hit rect (paginated popups); nil otherwise
 M.popup_page_count = 1 -- number of pages in the current popup (1 = no pagination)
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
-M.room_mesh = nil -- trapezoid mesh the room canvas is drawn through (tilt)
-M.sidewall_mesh = nil -- shaded triangles filling the side gaps of the tilt
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
 M.tile_cache = {}
@@ -223,25 +155,51 @@ local function get_tile(path)
 end
 
 
-local function load_terminal_font()
-	local size = math.max(6, math.floor((love.filesystem.getInfo("font.ttf") and 15 or 14) * M.font_scale + 0.5))
+-- The default UI font is the shipped pixel (Minecraft-style) font, but a local
+-- `font.ttf` (gitignored) overrides it if the user drops one in.
+local function pixel_font_path()
 	if love.filesystem.getInfo("font.ttf") then
-		M.font_term = love.graphics.newFont("font.ttf", size)
+		return "font.ttf"
+	elseif love.filesystem.getInfo("monocraft.ttf") then
+		return "monocraft.ttf"
+	end
+	return nil
+end
+
+local function load_terminal_font()
+	local path = pixel_font_path()
+	local size = math.max(6, math.floor((path and 16 or 14) * M.font_scale + 0.5))
+	if path then
+		M.font_term = love.graphics.newFont(path, size)
+		M.font_term:setFilter("nearest", "nearest") -- crisp pixel font
 	else
 		M.font_term = love.graphics.newFont(size)
 	end
 end
 
 local function load_fixed_fonts()
-	if love.filesystem.getInfo("font.ttf") then
-		M.font = love.graphics.newFont("font.ttf", 15)
-		M.font_big = love.graphics.newFont("font.ttf", 28)
-		M.font_small = love.graphics.newFont("font.ttf", 10)
+	-- Default: a pixel (Minecraft-style) font for the whole UI.
+	local path = pixel_font_path()
+	if path then
+		M.font = love.graphics.newFont(path, 16)
+		M.font_big = love.graphics.newFont(path, 30)
+		M.font_small = love.graphics.newFont(path, 12)
+		for _, f in ipairs({ M.font, M.font_big, M.font_small }) do
+			f:setFilter("nearest", "nearest")
+		end
 	else
 		M.font = love.graphics.newFont(14)
 		M.font_big = love.graphics.newFont(26)
 		M.font_small = love.graphics.newFont(10)
 	end
+	-- "Computer logs and stuff" (laptop / chat popups): a clean monospace, kept
+	-- distinct from the pixel default and the handwriting note font.
+	if love.filesystem.getInfo("font_mono.ttf") then
+		M.font_mono = love.graphics.newFont("font_mono.ttf", 15)
+	else
+		M.font_mono = M.font
+	end
+	-- Handwritten evidence (scroll popups).
 	if love.filesystem.getInfo("handwriting.ttf") then
 		M.font_handwriting = love.graphics.newFont("handwriting.ttf", 16)
 		M.font_handwriting_large = love.graphics.newFont("handwriting.ttf", 48)
@@ -317,36 +275,6 @@ function M.load()
 
 	M.room_canvas = love.graphics.newCanvas(ROOM_VW, ROOM_VH)
 	M.room_canvas:setFilter("linear", "linear")
-
-	-- Tilt mesh: a subdivided grid textured with the room canvas. Vertices are
-	-- placed into a trapezoid by M.update_room_mesh (from M.resize); UVs are the
-	-- fixed grid fractions.
-	local verts = {}
-	for j = 0, TILT_GY do
-		for i = 0, TILT_GX do
-			verts[#verts + 1] = { 0, 0, i / TILT_GX, j / TILT_GY }
-		end
-	end
-	M.room_mesh = love.graphics.newMesh(verts, "triangles", "dynamic")
-	local map = {}
-	for j = 0, TILT_GY - 1 do
-		for i = 0, TILT_GX - 1 do
-			local a, b, c, d = tilt_idx(i, j), tilt_idx(i + 1, j), tilt_idx(i + 1, j + 1), tilt_idx(i, j + 1)
-			map[#map + 1] = a
-			map[#map + 1] = b
-			map[#map + 1] = c
-			map[#map + 1] = a
-			map[#map + 1] = c
-			map[#map + 1] = d
-		end
-	end
-	M.room_mesh:setVertexMap(map)
-	M.room_mesh:setTexture(M.room_canvas)
-
-	-- Two shaded triangles that fill the concave "waist" gaps down the sides, so
-	-- they read as the room's side walls rather than blank notches. Untextured;
-	-- positions and per-vertex colours are set in M.update_room_mesh.
-	M.sidewall_mesh = love.graphics.newMesh(6, "triangles", "dynamic")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -766,8 +694,18 @@ local function draw_room_view(state)
 		love.graphics.line(fx, fy, fx, fy + fh)
 	end
 
-	-- The room-name banner is drawn flat (untilted) in M.draw so its text stays
-	-- readable; only BANNER_H is used here to reserve top-of-room layout space.
+	-- ---- room name banner (full width, pinned to the top edge) ----
+	love.graphics.setColor(0, 0, 0, 0.52)
+	love.graphics.rectangle("fill", px, py, pw, BANNER_H)
+	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
+	love.graphics.setLineWidth(1)
+	love.graphics.line(px + 8, py + BANNER_H, px + pw - 8, py + BANNER_H)
+
+	love.graphics.setFont(M.font_big)
+	love.graphics.setColor(C.status_text)
+	local rname = room_def.name
+	local rnw = M.font_big:getWidth(rname)
+	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_big:getHeight()) / 2)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
@@ -990,7 +928,7 @@ local function draw_popup(state)
 	-- to pick a popup style (e.g. "slack") while keeping `sprite` for its
 	-- room-view icon.
 	local sprite = item.popup or item.sprite
-	local BTN_W = 130
+	local BTN_W = 160 -- wide enough for "Close  [Esc]" in the pixel font
 	local BTN_H = 34
 
 	-- Title helper (shared by all three styles)
@@ -1151,10 +1089,10 @@ local function draw_popup(state)
 			love.graphics.rectangle("line", scr_x, scr_y, scr_w, scr_h)
 		end
 
-		-- Filename header + divider, then the body — all in the terminal font.
+		-- Filename header + divider, then the body — in the computer-log font.
 		local pad = 16
-		local line_h = M.font:getHeight()
-		love.graphics.setFont(M.font)
+		local line_h = M.font_mono:getHeight()
+		love.graphics.setFont(M.font_mono)
 		love.graphics.setColor(0.55, 0.95, 0.55) -- terminal-green filename
 		love.graphics.print(item.filename, scr_x + pad, scr_y + pad)
 		love.graphics.setColor(0.30, 0.55, 0.30)
@@ -1162,7 +1100,7 @@ local function draw_popup(state)
 		local div_y = scr_y + pad + line_h + 6
 		love.graphics.line(scr_x + pad, div_y, scr_x + scr_w - pad, div_y)
 
-		draw_popup_body(state, item.content, M.font,
+		draw_popup_body(state, item.content, M.font_mono,
 			scr_x + pad, div_y + 10, scr_w - pad * 2, (scr_y + scr_h) - (div_y + 10) - 4,
 			{ 0.82, 0.88, 0.84 }, { 0.55, 0.85, 0.60 })
 
@@ -1200,7 +1138,8 @@ local function draw_popup(state)
 		local col_w = POP_W * 0.66
 		local col_h = POP_H * 0.60
 
-		-- Channel / DM title above the message column.
+		-- Channel / DM title above the message column (computer-log font).
+		love.graphics.setFont(M.font_mono)
 		love.graphics.setColor(0.93, 0.93, 0.96)
 		love.graphics.print(item.channel or title, col_x, pop_y + POP_H * 0.07)
 
@@ -1208,7 +1147,7 @@ local function draw_popup(state)
 		love.graphics.setColor(0.10, 0.09, 0.13, 0.72)
 		love.graphics.rectangle("fill", col_x - 8, col_y - 6, col_w + 16, col_h + 12, 4, 4)
 
-		draw_popup_body(state, item.content, M.font,
+		draw_popup_body(state, item.content, M.font_mono,
 			col_x, col_y, col_w, col_h,
 			{ 0.90, 0.91, 0.94 }, { 0.80, 0.82, 0.92 })
 
@@ -1279,22 +1218,59 @@ local function draw_popup(state)
 	end
 end
 
--- Flat room-name banner over the top of the (tilted) room view.
-local function draw_room_banner(state)
-	local room_def = World.rooms[state.current_room]
-	local wall = room_def.wall or { 0.18, 0.16, 0.20 }
-	local bh = M.font_big:getHeight() + M.PAD
-	local x, y, w = M.room_x, M.room_y, M.room_w
-	love.graphics.setColor(0, 0, 0, 0.62)
-	love.graphics.rectangle("fill", x, y, w, bh)
-	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
-	love.graphics.setLineWidth(1)
-	love.graphics.line(x + 8, y + bh, x + w - 8, y + bh)
-	love.graphics.setFont(M.font_big)
-	love.graphics.setColor(C.status_text)
-	local rname = room_def.name
-	local rnw = M.font_big:getWidth(rname)
-	love.graphics.print(rname, x + (w - rnw) / 2, y + (bh - M.font_big:getHeight()) / 2)
+local ROOM_BORDER = 16 -- pixel-art frame thickness around the room view
+
+-- A chunky beveled pixel frame around the room rect: dark outer/inner outlines,
+-- a wood-tone body, and a top-left highlight / bottom-right shadow bevel, plus
+-- little corner studs. Drawn in the margin left by insetting the room canvas.
+local function draw_room_border(x, y, w, h)
+	local B = ROOM_BORDER
+	local u = 3 -- pixel unit for outlines / bevel
+	local edge = { 0.10, 0.08, 0.06 }
+	local body = { 0.42, 0.30, 0.18 }
+	local hi = { 0.64, 0.48, 0.28 }
+	local sh = { 0.24, 0.16, 0.09 }
+
+	-- body bands framing the opening (top / bottom / left / right)
+	love.graphics.setColor(body)
+	love.graphics.rectangle("fill", x, y, w, B)
+	love.graphics.rectangle("fill", x, y + h - B, w, B)
+	love.graphics.rectangle("fill", x, y, B, h)
+	love.graphics.rectangle("fill", x + w - B, y, B, h)
+
+	-- outer dark outline
+	love.graphics.setColor(edge)
+	love.graphics.rectangle("fill", x, y, w, u)
+	love.graphics.rectangle("fill", x, y + h - u, w, u)
+	love.graphics.rectangle("fill", x, y, u, h)
+	love.graphics.rectangle("fill", x + w - u, y, u, h)
+
+	-- bevel: highlight along top + left, shadow along bottom + right
+	love.graphics.setColor(hi)
+	love.graphics.rectangle("fill", x + u, y + u, w - 2 * u, u)
+	love.graphics.rectangle("fill", x + u, y + u, u, h - 2 * u)
+	love.graphics.setColor(sh)
+	love.graphics.rectangle("fill", x + u, y + h - 2 * u, w - 2 * u, u)
+	love.graphics.rectangle("fill", x + w - 2 * u, y + u, u, h - 2 * u)
+
+	-- inner dark outline around the opening
+	love.graphics.setColor(edge)
+	local ix, iy, iw, ih = x + B - u, y + B - u, w - 2 * (B - u), h - 2 * (B - u)
+	love.graphics.rectangle("fill", ix, iy, iw, u)
+	love.graphics.rectangle("fill", ix, iy + ih - u, iw, u)
+	love.graphics.rectangle("fill", ix, iy, u, ih)
+	love.graphics.rectangle("fill", ix + iw - u, iy, u, ih)
+
+	-- corner studs
+	local s = 5
+	love.graphics.setColor(hi)
+	for _, c in ipairs({ { x + u + 1, y + u + 1 }, { x + w - u - 1 - s, y + u + 1 },
+		{ x + u + 1, y + h - u - 1 - s }, { x + w - u - 1 - s, y + h - u - 1 - s } }) do
+		love.graphics.rectangle("fill", c[1], c[2], s, s)
+		love.graphics.setColor(edge)
+		love.graphics.rectangle("fill", c[1] + s - 1, c[2] + s - 1, 1, 1)
+		love.graphics.setColor(hi)
+	end
 end
 
 function M.draw(state, term, best)
@@ -1309,14 +1285,12 @@ function M.draw(state, term, best)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
 
-	-- Fill the room panel with a wall colour first (safety backdrop), then the
-	-- shaded side-wall triangles that fill the tilt's waist gaps, then the room.
-	love.graphics.setColor(SIDEWALL_NEAR)
-	love.graphics.rectangle("fill", M.room_x, M.room_y, M.room_w, M.room_h)
+	-- Room view, inset to leave room for a pixel-art frame around it.
+	local B = ROOM_BORDER
 	love.graphics.setColor(1, 1, 1)
-	love.graphics.draw(M.sidewall_mesh)
-	love.graphics.draw(M.room_mesh)
-	draw_room_banner(state)
+	love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0,
+		(M.room_w - 2 * B) / ROOM_VW, (M.room_h - 2 * B) / ROOM_VH)
+	draw_room_border(M.room_x, M.room_y, M.room_w, M.room_h)
 
 	draw_status_bar(state)
 	if state.won then
