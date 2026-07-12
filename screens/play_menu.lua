@@ -133,6 +133,7 @@ function M.draw()
     M.load_buttons()
   end
   love.graphics.clear(0,0,0,1)
+  Render.draw_menu_background(cw, ch, true)
   for _, button in ipairs(M.buttons) do
     local this_button_size = {w = button.size.w,h= button.size.h}
     if (button_selected()) then

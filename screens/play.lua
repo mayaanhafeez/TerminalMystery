@@ -114,12 +114,7 @@ function M.draw()
     M.load_buttons()
   end
   love.graphics.clear(0,0,0,1)
-  local img = love.graphics.newImage("assets/sprites/floor/foyer.png")
-  img:setWrap("repeat", "repeat")
-  local iw, ih = img:getDimensions()
-  local quad = love.graphics.newQuad(0,0, cw, ch, iw, ih)
-  love.graphics.setColor(1,1,1,1)
-  love.graphics.draw(img, quad, 0,0)
+  Render.draw_menu_background(cw, ch, false)
   local title = "Terminal Mystery"
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_handwriting_large)

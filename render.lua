@@ -125,6 +125,45 @@ local ASSET_SPRITES = {
 }
 
 M.slack_bg = nil -- Slack popup background (assets/slack-bg.png), loaded in M.load
+M.menu_bg = nil -- Title/play-menu background (assets/background.png), loaded in M.load
+M.menu_glow_shader = nil -- neon monitor-glow shader over M.menu_bg, loaded in M.load
+
+-- Where the monitor screen sits in assets/background.png, as a UV fraction
+-- (0..1) of the source image. The glow shader blooms cyan light outward from
+-- this point so the dark room reads as lit by the screen.
+local MENU_GLOW_UV = { 0.69, 0.14 }
+
+local MENU_GLOW_SHADER_CODE = [[
+	uniform vec2 glow_uv;
+	uniform vec2 tex_size;
+	uniform float time;
+
+	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords)
+	{
+		vec4 pixel = Texel(tex, uv);
+
+		// aspect-correct distance (in source pixels) from the monitor screen
+		vec2 d = (uv - glow_uv) * tex_size;
+		float dist = length(d);
+
+		// darken the room overall for a moodier, dark-room feel
+		vec3 darkened = pixel.rgb * 0.55;
+
+		// soft neon bloom radiating from the monitor, cyan/blue with a slow pulse
+		float pulse = 0.85 + 0.15 * sin(time * 1.6);
+		float glow = exp(-dist / (260.0 * pulse)) * 0.8;
+		vec3 neon = vec3(0.35, 0.85, 1.0) * glow;
+
+		vec3 result = darkened + neon;
+
+		// gentle vignette so the edges recede into darkness
+		vec2 vc = uv - vec2(0.5);
+		float vig = 1.0 - smoothstep(0.35, 0.9, length(vc));
+		result *= mix(0.7, 1.0, vig);
+
+		return vec4(result, pixel.a) * color;
+	}
+]]
 
 local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
 
@@ -255,6 +294,11 @@ function M.load()
 	-- Slack popup background
 	M.slack_bg = load_img("assets/slack-bg.png", "nearest")
 
+	-- Title/play-menu background
+	M.menu_bg = load_img("assets/background.png", "linear")
+	local shader_ok, shader = pcall(love.graphics.newShader, MENU_GLOW_SHADER_CODE)
+	M.menu_glow_shader = shader_ok and shader or nil
+
 	-- Furniture / rug sprites (2dpixx individual PNGs)
 	for _, name in ipairs({
 		"dresser_flower",
@@ -278,6 +322,30 @@ function M.load()
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
+end
+
+-- Draws M.menu_bg scaled to cover the cw×ch window (cropping overflow, never
+-- letterboxing), then an optional darkening overlay on top. Used by the
+-- title and play-menu screens.
+function M.draw_menu_background(cw, ch, darken)
+	if M.menu_bg then
+		local iw, ih = M.menu_bg:getDimensions()
+		local scale = math.max(cw / iw, ch / ih)
+		local dw, dh = iw * scale, ih * scale
+		love.graphics.setColor(1, 1, 1, 1)
+		if M.menu_glow_shader then
+			M.menu_glow_shader:send("glow_uv", MENU_GLOW_UV)
+			M.menu_glow_shader:send("tex_size", { iw, ih })
+			M.menu_glow_shader:send("time", love.timer.getTime())
+			love.graphics.setShader(M.menu_glow_shader)
+		end
+		love.graphics.draw(M.menu_bg, (cw - dw) / 2, (ch - dh) / 2, 0, scale, scale)
+		love.graphics.setShader()
+	end
+	if darken then
+		love.graphics.setColor(0, 0, 0, 0.55)
+		love.graphics.rectangle("fill", 0, 0, cw, ch)
+	end
 end
 
 function M.terminal_text_width()
