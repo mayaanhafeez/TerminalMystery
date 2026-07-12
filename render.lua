@@ -128,13 +128,24 @@ M.slack_bg = nil -- Slack popup background (assets/slack-bg.png), loaded in M.lo
 M.menu_bg = nil -- Title/play-menu background (assets/background.png), loaded in M.load
 M.menu_glow_shader = nil -- neon monitor-glow shader over M.menu_bg, loaded in M.load
 
--- Where the monitor screen sits in assets/background.png, as a UV fraction
--- (0..1) of the source image. The glow shader blooms cyan light outward from
--- this point so the dark room reads as lit by the screen.
-local MENU_GLOW_UV = { 0.69, 0.14 }
+-- Where the monitor screen sits in assets/background.png, as a UV-space
+-- rect (xMin, yMin, xMax, yMax, each 0..1) of the source image. The glow
+-- shader blooms deep indigo-purple light outward from this whole rect — the
+-- entire screen is the light source, not a single point — so the dark room
+-- reads as lit by the screen.
+local MENU_GLOW_RECT = { 0.622, 0.060, 0.760, 0.220 }
+
+-- Rosé Pine "overlay" (#26233a) — a dark, muted indigo-purple, used as the
+-- glow tint instead of a bright neon color.
+local MENU_GLOW_COLOR = { 0x26 / 255, 0x23 / 255, 0x3a / 255 }
+
+-- Texture pixels per glow "block" — quantizing distance to this grid gives
+-- the bloom a chunky, pixel-art stepped edge instead of a smooth analog glow.
+local MENU_GLOW_PIXEL_SIZE = 18.0
 
 local MENU_GLOW_SHADER_CODE = [[
-	uniform vec2 glow_uv;
+	uniform vec4 glow_rect;
+	uniform vec3 glow_color;
 	uniform vec2 tex_size;
 	uniform float time;
 
@@ -142,17 +153,29 @@ local MENU_GLOW_SHADER_CODE = [[
 	{
 		vec4 pixel = Texel(tex, uv);
 
+		// snap uv to a coarse grid so the bloom reads as blocky/pixelated
+		// rather than a smooth analog gradient
+		vec2 grid = tex_size / ]] .. string.format("%.1f", MENU_GLOW_PIXEL_SIZE) .. [[;
+		vec2 puv = floor(uv * grid) / grid;
+
 		// aspect-correct distance (in source pixels) from the monitor screen
-		vec2 d = (uv - glow_uv) * tex_size;
-		float dist = length(d);
+		// rect — zero anywhere inside it, so the whole screen glows evenly
+		// and light falls off from its edges outward
+		vec2 outside = max(glow_rect.xy - puv, puv - glow_rect.zw);
+		outside = max(outside, vec2(0.0));
+		float dist = length(outside * tex_size);
 
 		// darken the room overall for a moodier, dark-room feel
 		vec3 darkened = pixel.rgb * 0.55;
 
-		// soft neon bloom radiating from the monitor, cyan/blue with a slow pulse
-		float pulse = 0.85 + 0.15 * sin(time * 1.6);
-		float glow = exp(-dist / (260.0 * pulse)) * 0.8;
-		vec3 neon = vec3(0.35, 0.85, 1.0) * glow;
+		// wide, soft indigo-purple gradient, quantized into a handful of
+		// bands (pixelated, not smooth) so the light reads as ambient room
+		// lighting spread across the whole frame rather than one glowing
+		// blob — a slow, barely-there breathing pulse instead of a strobe
+		float pulse = 0.95 + 0.05 * sin(time * 0.5);
+		float glow = exp(-dist / 550.0) * pulse;
+		glow = floor(glow * 10.0) / 10.0;
+		vec3 neon = glow_color * glow;
 
 		vec3 result = darkened + neon;
 
@@ -334,7 +357,8 @@ function M.draw_menu_background(cw, ch, darken)
 		local dw, dh = iw * scale, ih * scale
 		love.graphics.setColor(1, 1, 1, 1)
 		if M.menu_glow_shader then
-			M.menu_glow_shader:send("glow_uv", MENU_GLOW_UV)
+			M.menu_glow_shader:send("glow_rect", MENU_GLOW_RECT)
+			M.menu_glow_shader:send("glow_color", MENU_GLOW_COLOR)
 			M.menu_glow_shader:send("tex_size", { iw, ih })
 			M.menu_glow_shader:send("time", love.timer.getTime())
 			love.graphics.setShader(M.menu_glow_shader)
