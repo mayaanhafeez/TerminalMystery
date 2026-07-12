@@ -19,6 +19,13 @@ local ROOM_VH = 780
 local ROOM_ASPECT = ROOM_VW / ROOM_VH
 local MIN_TERM_W = 400
 
+-- Tilt: the room canvas is drawn through a trapezoid mesh so it reads as a
+-- top-down view seen slightly from one side. ROOM_TILT is the fraction each
+-- top corner is pulled inward (0 = flat). TILT_GX/GY subdivide the mesh so the
+-- texture maps smoothly instead of creasing along a single diagonal.
+local ROOM_TILT = 0.07
+local TILT_GX, TILT_GY = 10, 12
+
 M.W = 1280
 M.H = 800
 M.STATUS_H = 28
@@ -53,6 +60,32 @@ function M.resize(w, h)
 	M.MAP_W = room_w
 	M.room_x = M.TERM_W
 	M.room_y = (avail_h - room_h) / 2
+	M.update_room_mesh()
+end
+
+local function tilt_idx(i, j)
+	return j * (TILT_GX + 1) + i + 1
+end
+
+-- Position the tilt mesh vertices over the current room rect as a trapezoid:
+-- the top edge is inset by ROOM_TILT on each side, the bottom stays full width.
+function M.update_room_mesh()
+	if not M.room_mesh then
+		return
+	end
+	local x, y, w, h = M.room_x, M.room_y, M.room_w, M.room_h
+	local top_inset = w * ROOM_TILT
+	for j = 0, TILT_GY do
+		local t = j / TILT_GY
+		local ty = y + t * h
+		local inset = top_inset * (1 - t)
+		local lx = x + inset
+		local rx = x + w - inset
+		for i = 0, TILT_GX do
+			local fx = i / TILT_GX
+			M.room_mesh:setVertex(tilt_idx(i, j), lx + fx * (rx - lx), ty, fx, t)
+		end
+	end
 end
 
 -- Palette
@@ -64,6 +97,7 @@ local C = {
 	term_user = { 0.85, 0.95, 0.85 },
 	prompt = { 0.95, 0.75, 0.25 },
 	system = { 0.95, 0.80, 0.40 },
+	room_wall = { 0.90, 0.90, 0.92 }, -- side-wall fill behind the tilted room
 	map_bg = { 0.10, 0.12, 0.16 },
 	map_border = { 0.16, 0.18, 0.22 },
 	room_unvisited = { 0.18, 0.20, 0.24 },
@@ -104,6 +138,7 @@ M.popup_prev_rect = nil -- previous-page hit rect (paginated popups); nil otherw
 M.popup_next_rect = nil -- next-page hit rect (paginated popups); nil otherwise
 M.popup_page_count = 1 -- number of pages in the current popup (1 = no pagination)
 M.room_canvas = nil -- offscreen room view at ROOM_VW × ROOM_VH
+M.room_mesh = nil -- trapezoid mesh the room canvas is drawn through (tilt)
 M.sprites = {} -- item-icon sprites (sprite_key -> {img, scale})
 M.floor_tiles = {} -- room_id  -> Image (16×16 NES floor tile)
 M.tile_cache = {}
@@ -249,6 +284,31 @@ function M.load()
 
 	M.room_canvas = love.graphics.newCanvas(ROOM_VW, ROOM_VH)
 	M.room_canvas:setFilter("linear", "linear")
+
+	-- Tilt mesh: a subdivided grid textured with the room canvas. Vertices are
+	-- placed into a trapezoid by M.update_room_mesh (from M.resize); UVs are the
+	-- fixed grid fractions.
+	local verts = {}
+	for j = 0, TILT_GY do
+		for i = 0, TILT_GX do
+			verts[#verts + 1] = { 0, 0, i / TILT_GX, j / TILT_GY }
+		end
+	end
+	M.room_mesh = love.graphics.newMesh(verts, "triangles", "dynamic")
+	local map = {}
+	for j = 0, TILT_GY - 1 do
+		for i = 0, TILT_GX - 1 do
+			local a, b, c, d = tilt_idx(i, j), tilt_idx(i + 1, j), tilt_idx(i + 1, j + 1), tilt_idx(i, j + 1)
+			map[#map + 1] = a
+			map[#map + 1] = b
+			map[#map + 1] = c
+			map[#map + 1] = a
+			map[#map + 1] = c
+			map[#map + 1] = d
+		end
+	end
+	M.room_mesh:setVertexMap(map)
+	M.room_mesh:setTexture(M.room_canvas)
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -543,17 +603,23 @@ local function draw_grid_tiles(tiles, gx, gy, gw, gh)
           local path
           local w = 1
           local h = 1
+          local tint
           if type(e) == "table" then
-            w = e.w
-            h = e.h
+            w = e.w or 1
+            h = e.h or 1
             path = e.path
+            tint = e.tint
           else
             path = e
           end
           if path then
             local img = get_tile(path)
             if img then
-              love.graphics.setColor(1, 1, 1)
+              if tint then
+                love.graphics.setColor(tint)
+              else
+                love.graphics.setColor(1, 1, 1)
+              end
               local px = gx + (col-1) * cell
               local py = gy + (row-1) * cell
               if w < 0 then
@@ -662,18 +728,8 @@ local function draw_room_view(state)
 		love.graphics.line(fx, fy, fx, fy + fh)
 	end
 
-	-- ---- room name banner (full width, pinned to the top edge) ----
-	love.graphics.setColor(0, 0, 0, 0.52)
-	love.graphics.rectangle("fill", px, py, pw, BANNER_H)
-	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
-	love.graphics.setLineWidth(1)
-	love.graphics.line(px + 8, py + BANNER_H, px + pw - 8, py + BANNER_H)
-
-	love.graphics.setFont(M.font_big)
-	love.graphics.setColor(C.status_text)
-	local rname = room_def.name
-	local rnw = M.font_big:getWidth(rname)
-	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_big:getHeight()) / 2)
+	-- The room-name banner is drawn flat (untilted) in M.draw so its text stays
+	-- readable; only BANNER_H is used here to reserve top-of-room layout space.
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
@@ -1185,6 +1241,24 @@ local function draw_popup(state)
 	end
 end
 
+-- Flat room-name banner over the top of the (tilted) room view.
+local function draw_room_banner(state)
+	local room_def = World.rooms[state.current_room]
+	local wall = room_def.wall or { 0.18, 0.16, 0.20 }
+	local bh = M.font_big:getHeight() + M.PAD
+	local x, y, w = M.room_x, M.room_y, M.room_w
+	love.graphics.setColor(0, 0, 0, 0.62)
+	love.graphics.rectangle("fill", x, y, w, bh)
+	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
+	love.graphics.setLineWidth(1)
+	love.graphics.line(x + 8, y + bh, x + w - 8, y + bh)
+	love.graphics.setFont(M.font_big)
+	love.graphics.setColor(C.status_text)
+	local rname = room_def.name
+	local rnw = M.font_big:getWidth(rname)
+	love.graphics.print(rname, x + (w - rnw) / 2, y + (bh - M.font_big:getHeight()) / 2)
+end
+
 function M.draw(state, term, best)
 	-- Render the room view into its own virtual-resolution canvas first.
 	love.graphics.setCanvas(M.room_canvas)
@@ -1197,8 +1271,15 @@ function M.draw(state, term, best)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
 
+	-- Fill the room panel with a wall colour first: the trapezoid tilt leaves
+	-- triangular gaps down the sides, and this makes them read as side walls.
+	love.graphics.setColor(C.room_wall)
+	love.graphics.rectangle("fill", M.room_x, M.room_y, M.room_w, M.room_h)
+
+	-- Blit the room canvas through the trapezoid tilt mesh, then the flat banner.
 	love.graphics.setColor(1, 1, 1)
-	love.graphics.draw(M.room_canvas, M.room_x, M.room_y, 0, M.room_w / ROOM_VW, M.room_h / ROOM_VH)
+	love.graphics.draw(M.room_mesh)
+	draw_room_banner(state)
 
 	draw_status_bar(state)
 	if state.won then

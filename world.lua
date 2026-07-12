@@ -36,6 +36,27 @@ M.accuse_aliases = {
 	["praghavan"] = "Priya Raghavan",
 }
 
+-- Build a room's tile grid in the foyer's format: a floor layer, a wall strip
+-- along the bottom, and a door in the bottom-centre. All rooms share the
+-- foyer's grid-native tile art; `tint` (an {r,g,b} table) recolours the floor
+-- and wall so each room stays visually distinct. render.lua interprets this.
+local function standard_tiles(tint)
+	local floor, wall, door = {}, {}, {}
+	for r = 1, 9 do
+		floor[r] = "FFFFFF"
+		wall[r] = (r == 9) and "WWWWWW" or "......"
+		door[r] = (r == 9) and "..D..." or "......"
+	end
+	return {
+		legend = {
+			["F"] = { path = "assets/foyer-floor.png", tint = tint },
+			["W"] = { path = "assets/foyer-wall.png", tint = tint },
+			["D"] = { path = "assets/foyer-door.png", w = 2, h = 1 },
+		},
+		layers = { floor, wall, door },
+	}
+end
+
 -- Room definitions with inline items.
 -- Derived automatically unless overridden:
 --   room id   → the table key
@@ -69,53 +90,13 @@ logged into Slack.]],
 			{ ref = "slack_general", x = 0.82, y = 0.62 },
 			{ ref = "personnel_dossier", x = 0.40, y = 0.72 },
 		},
-    tiles = {
-      legend = {
-        ["F"] = "assets/foyer-floor.png",
-        ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
-        ["W"] = "assets/foyer-wall.png",
-      },
-      layers = {
-        {
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        },
-        {
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "WWWWWW",
-        },
-        {
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "..D...",
-        },
-    },
-	},
+		tiles = standard_tiles(nil),
 	},
 
 	home_office = {
 		parent = "foyer",
 		name = "Home Office",
+		tiles = standard_tiles({ 0.55, 0.85, 0.5 }),
 		description = [[The Home Office.
 
 Trent's personal workspace — a standing desk, a wall of monitors,
@@ -143,6 +124,7 @@ A terminal window shows a list of recently-cloned repos.]],
 	den = {
 		parent = "foyer",
 		name = "The Den",
+		tiles = standard_tiles({ 0.9, 0.55, 0.6 }),
 		description = [[The Den. This is where it happened.
 
 A home theater, deep couches, the remains of the launch demo
@@ -168,6 +150,7 @@ a service closet stands very slightly ajar.]],
 	[".closet"] = {
 		parent = "den",
 		hidden = true,
+		tiles = standard_tiles({ 0.5, 0.5, 0.55 }),
 		description = [[A cramped AV / network closet behind the home-theater rack.
 
 Cable spaghetti, a patch panel, and a wastebasket. Something
@@ -180,6 +163,7 @@ was crumpled up and dropped in the corner in a hurry.]],
 	sunroom = {
 		parent = "foyer",
 		name = "Sunroom",
+		tiles = standard_tiles({ 0.5, 0.9, 0.8 }),
 		description = [[The Sunroom.
 
 Glass on three sides, string lights, and a very expensive
@@ -205,6 +189,7 @@ A spare guest badge has been left on the counter.]],
 		parent = "foyer",
 		name = "Wine Cellar",
 		requires = "keycard.txt",
+		tiles = standard_tiles({ 0.45, 0.5, 0.7 }),
 		description = [[The Wine Cellar, down a flight of stairs.
 
 Cool and dim, racks of bottles in orderly rows. The smart lock
@@ -225,6 +210,7 @@ white is wedged face-down between two of the racks.]],
 	garage = {
 		parent = "foyer",
 		name = "Garage",
+		tiles = standard_tiles({ 1.0, 0.72, 0.4 }),
 		description = [[The Garage.
 
 Converted into an overflow workspace: a folding table, a
@@ -247,6 +233,7 @@ A GitHub Actions run history is still up on the screen.]],
 	game_room = {
 		parent = "foyer",
 		name = "Game Room",
+		tiles = standard_tiles({ 0.75, 0.5, 1.0 }),
 		description = [[The Game Room.
 
 A stand-up arcade cabinet, a couch, and a laptop someone left
@@ -272,6 +259,7 @@ A printout is pinned to the side of the cabinet.]],
 		name = "Server Room",
 		mode = "000",
 		lock_code = "foxglove",
+		tiles = standard_tiles({ 0.55, 0.75, 0.95 }),
 		description = [[The Server Room.
 
 The house's real infrastructure lives here: two racks, blinking
