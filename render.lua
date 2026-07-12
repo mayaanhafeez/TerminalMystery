@@ -17,7 +17,7 @@ local ROOM_VW = 520
 -- the canvas exactly with square tiles — no bare strip along one edge.
 local ROOM_VH = 780
 local ROOM_ASPECT = ROOM_VW / ROOM_VH
-local MIN_TERM_W = 400
+local MIN_TERM_W = 280
 
 -- Tilt: the room canvas is drawn through a trapezoid mesh so it reads as a
 -- top-down view seen slightly from one side. ROOM_TILT is the fraction each
@@ -44,22 +44,21 @@ function M.resize(w, h)
 	M.W = w
 	M.H = h
 	local avail_h = math.max(1, h - M.STATUS_H)
-	local room_w = avail_h * ROOM_ASPECT
-	if w - room_w < MIN_TERM_W then
-		room_w = math.max(1, w - MIN_TERM_W)
-	end
-	local room_h = room_w / ROOM_ASPECT
-	if room_h > avail_h then
-		room_h = avail_h
-		room_w = room_h * ROOM_ASPECT
-	end
+	-- The room ALWAYS fills the full panel height so no letterbox bars ever
+	-- appear around it. It keeps its aspect ratio and the terminal takes the
+	-- remaining width — so a narrower window shrinks the terminal, not the room.
+	-- Only when the window is too narrow to give the terminal its minimum width
+	-- do we cap the room width (it still fills the height, squishing slightly
+	-- rather than showing bars).
+	local room_h = avail_h
+	local room_w = math.min(room_h * ROOM_ASPECT, math.max(1, w - MIN_TERM_W))
 	M.room_w = room_w
 	M.room_h = room_h
 	M.TERM_W = w - room_w
 	M.MAP_X = M.TERM_W
 	M.MAP_W = room_w
 	M.room_x = M.TERM_W
-	M.room_y = (avail_h - room_h) / 2
+	M.room_y = 0
 	M.update_room_mesh()
 end
 
