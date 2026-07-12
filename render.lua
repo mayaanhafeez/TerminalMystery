@@ -23,8 +23,14 @@ local MIN_TERM_W = 280
 -- top-down view seen slightly from one side. ROOM_TILT is the fraction each
 -- top corner is pulled inward (0 = flat). TILT_GX/GY subdivide the mesh so the
 -- texture maps smoothly instead of creasing along a single diagonal.
-local ROOM_TILT = 0.07
-local TILT_GX, TILT_GY = 10, 12
+-- Perspective "filter": the room grid is split into a back wall (the top
+-- ROOM_WALL_FRAC of the rows) and the floor (the rest). The wall warps into an
+-- upward-facing trapezoid ( \  / ) and the floor into a downward one ( /  \ ),
+-- meeting at a pinched waist. ROOM_TILT is the horizontal inset at that waist
+-- (0 = flat). The tile art itself (wall vs floor tiles) is set in world.lua.
+local ROOM_TILT = 0.12
+local ROOM_WALL_FRAC = 3 / 9 -- top 3 of the 9 grid rows are wall
+local TILT_GX, TILT_GY = 10, 18 -- GY is a multiple of 9 so the waist lands on a row
 
 M.W = 1280
 M.H = 800
@@ -73,11 +79,20 @@ function M.update_room_mesh()
 		return
 	end
 	local x, y, w, h = M.room_x, M.room_y, M.room_w, M.room_h
-	local top_inset = w * ROOM_TILT
+	local waist = w * ROOM_TILT -- max horizontal inset, at the wall/floor seam
 	for j = 0, TILT_GY do
 		local t = j / TILT_GY
 		local ty = y + t * h
-		local inset = top_inset * (1 - t)
+		-- inset is 0 at the top (wide wall top) and bottom (wide floor front),
+		-- peaking at the waist where wall meets floor:
+		--   wall  ( \  / ):  0 -> waist   over t in [0, WALL_FRAC]
+		--   floor ( /  \ ):  waist -> 0   over t in [WALL_FRAC, 1]
+		local inset
+		if t <= ROOM_WALL_FRAC then
+			inset = waist * (t / ROOM_WALL_FRAC)
+		else
+			inset = waist * (1 - (t - ROOM_WALL_FRAC) / (1 - ROOM_WALL_FRAC))
+		end
 		local lx = x + inset
 		local rx = x + w - inset
 		for i = 0, TILT_GX do
@@ -1275,7 +1290,7 @@ function M.draw(state, term, best)
 	love.graphics.setColor(C.room_wall)
 	love.graphics.rectangle("fill", M.room_x, M.room_y, M.room_w, M.room_h)
 
-	-- Blit the room canvas through the trapezoid tilt mesh, then the flat banner.
+	-- Blit the room canvas through the tilt mesh, then the flat banner.
 	love.graphics.setColor(1, 1, 1)
 	love.graphics.draw(M.room_mesh)
 	draw_room_banner(state)
