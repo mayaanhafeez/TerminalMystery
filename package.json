@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "build": "zip -r terminal_mystery.love main.lua world.lua render.lua items.lua save.lua screen.lua screens/ conf.lua commands/ assets/ handwriting.ttf monocraft.ttf font_mono.ttf && ./node_modules/.bin/love.js terminal_mystery.love web --title 'Terminal Mystery' --memory 67108864 && cp web-index.html web/index.html",
+    "build": "zip -r terminal_mystery.love main.lua world.lua render.lua items.lua save.lua screen.lua banner.lua screens/ conf.lua commands/ assets/ handwriting.ttf monocraft.ttf font_mono.ttf && ./node_modules/.bin/love.js terminal_mystery.love web --title 'Terminal Mystery' --memory 67108864 && cp web-index.html web/index.html",
     "serve": "node server.js",
     "test": "node server.js & sleep 2 && npx playwright test; kill %1"
   },

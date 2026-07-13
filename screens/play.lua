@@ -9,12 +9,11 @@ local HOVER_SCALE = 1.18
 local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
 
-local TITLE_SCALE = 2.2 -- title always renders bigger than any button state
-
 -- Rosé Pine accents
 local TEXT_COLOR = {0xe0/255, 0xde/255, 0xf4/255}
 local TEXT_OUTLINE = {0x39/255, 0x35/255, 0x52/255}
 local HIGHLIGHT_COLOR = {0x3e/255, 0x8f/255, 0xb0/255}
+local BANNER_FILL = {0x9c/255, 0xcf/255, 0xd8/255} -- foam, matches the boot banner
 
 local M = {}
 local function exit()
@@ -86,14 +85,12 @@ function M.draw()
   end
   love.graphics.clear(0,0,0,1)
   Render.draw_menu_background(cw, ch, false)
-  local title = "Terminal Mystery"
+  -- ASCII-art title banner (the same art the boot screen builds up to), drawn
+  -- at the shared canonical position so the boot flashbang keeps it fixed.
   local old_font = love.graphics.getFont()
-  love.graphics.setFont(Render.font_big)
-  local title_font = love.graphics.getFont()
-  local tx = center.x - (title_font:getWidth(title) * TITLE_SCALE) / 2
-  local ty = (center.y - 200) - (title_font:getHeight() * TITLE_SCALE) / 2
-  print_outlined(title, tx, ty, TEXT_COLOR, TITLE_SCALE, true)
+  Render.draw_title_banner(cw, ch, BANNER_FILL)
 
+  love.graphics.setFont(Render.font_big)
   for _, button in ipairs(M.buttons) do
     local this_button_size = {w = button.size.w,h= button.size.h}
     if (button_selected()) then
@@ -110,6 +107,15 @@ function M.draw()
     end
   end
   love.graphics.setFont(old_font)
+  -- Fade out the boot "flashbang" (if we just arrived from the boot screen).
+  Render.draw_intro_flash()
+end
+
+function M.update(dt)
+  -- Advance the boot -> title flashbang fade, if one is in progress.
+  if Render.flash_active() then
+    Render.flash_update(dt)
+  end
 end
 
 local function get_button_index(button)
@@ -156,15 +162,22 @@ function M.mousepressed(_, _, mouse_button)
   end
 end
 
+local BTN_GAP = 28 -- vertical gap between stacked buttons
+
 function M.load_buttons()
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_big)
   local play_size = get_button_size("Play")
   local exit_size = get_button_size("Exit")
   love.graphics.setFont(old_font)
+  -- Stack the buttons, horizontally centered, below the title banner.
+  local cw, ch = love.graphics.getDimensions()
+  local banner_bottom = Render.title_banner_layout(cw, ch).bottom
+  local play_y = banner_bottom + 64 + play_size.h / 2
+  local exit_y = play_y + play_size.h / 2 + BTN_GAP + exit_size.h / 2
   M.buttons = {
-    {label = "Play", size = play_size, position = {x=padding + play_size.w/2, y=center.y}, action = function() Screen.set("play_menu") end},
-    {label = "Exit", size = exit_size, position = {x=padding + exit_size.w/2, y=center.y + padding + (exit_size.h/2)}, action = function() exit() end},
+    {label = "Play", size = play_size, position = {x=center.x, y=play_y}, action = function() Screen.set("play_menu") end},
+    {label = "Exit", size = exit_size, position = {x=center.x, y=exit_y}, action = function() exit() end},
   }
 end
 

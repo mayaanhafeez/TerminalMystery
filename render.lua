@@ -3,6 +3,7 @@
 
 local World = require("world")
 local utf8 = require("utf8")
+local Banner = require("banner")
 
 local M = {}
 
@@ -96,6 +97,7 @@ M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
 M.font_big = nil
 M.font_small = nil -- used for minimap labels
 M.font_mono = nil -- computer-log font (laptop/chat popups); loaded from font_mono.ttf
+M.font_mono_big = nil -- larger monospace for the boot screen / ASCII banner
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
 M.font_handwriting_large = nil -- large variant for titles
 M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
@@ -128,7 +130,9 @@ M.slack_bg = nil -- Slack popup background (assets/slack-bg.png), loaded in M.lo
 M.menu_bg = nil -- Title/play-menu background (assets/background.png), loaded in M.load
 M.menu_glow_shader = nil -- neon monitor-glow shader over M.menu_bg, loaded in M.load
 M.crt_shader = nil -- CRT power-on shader for the game intro, loaded in M.load
+M.crt_overlay_shader = nil -- steady CRT-filter overlay (boot screen), loaded in M.load
 M.crt_canvas = nil -- full-window canvas the game frame is captured into for CRT
+M.intro_flash = nil -- transient white "flashbang" state for boot -> title handoff
 
 -- Where the monitor screen sits in assets/background.png, as a UV-space
 -- rect (xMin, yMin, xMax, yMax, each 0..1) of the source image. The glow
@@ -260,6 +264,42 @@ local CRT_SHADER_CODE = [[
 	}
 ]]
 
+-- Steady CRT-filter overlay (no unfold): subtle barrel curvature, scanlines,
+-- chromatic aberration, flicker and vignette, applied at a fixed strength.
+-- Used to give the boot screen an old-monitor look.
+local CRT_OVERLAY_SHADER_CODE = [[
+	uniform vec2 tex_size;
+	uniform float time;
+
+	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords)
+	{
+		vec2 cc = uv - 0.5;
+		float r2 = dot(cc, cc);
+		vec2 duv = cc * (1.0 + r2 * 0.10) + 0.5;
+		if (duv.x < 0.0 || duv.x > 1.0 || duv.y < 0.0 || duv.y > 1.0) {
+			return vec4(0.0, 0.0, 0.0, 1.0);
+		}
+
+		// chromatic aberration
+		float ca = 0.0016;
+		vec3 col;
+		col.r = Texel(tex, vec2(duv.x + ca, duv.y)).r;
+		col.g = Texel(tex, duv).g;
+		col.b = Texel(tex, vec2(duv.x - ca, duv.y)).b;
+
+		// scanlines + faint flicker
+		float scan = 0.85 + 0.15 * sin(duv.y * tex_size.y * 3.14159);
+		col *= scan;
+		col *= 0.97 + 0.03 * sin(time * 48.0);
+
+		// vignette
+		float vig = 1.0 - smoothstep(0.4, 0.95, length(cc));
+		col *= mix(0.72, 1.0, vig);
+
+		return vec4(col, 1.0) * color;
+	}
+]]
+
 local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
 
 local NES_SCALE = 3 -- each 16×16 floor tile rendered at 48×48 px
@@ -330,8 +370,10 @@ local function load_fixed_fonts()
 	-- distinct from the pixel default and the handwriting note font.
 	if love.filesystem.getInfo("font_mono.ttf") then
 		M.font_mono = love.graphics.newFont("font_mono.ttf", 15)
+		M.font_mono_big = love.graphics.newFont("font_mono.ttf", 22)
 	else
 		M.font_mono = M.font
+		M.font_mono_big = M.font_big or M.font
 	end
 	-- Handwritten evidence (scroll popups).
 	if love.filesystem.getInfo("handwriting.ttf") then
@@ -397,6 +439,8 @@ function M.load()
 	-- CRT power-on shader + full-window capture canvas (sized in M.resize).
 	local crt_ok, crt = pcall(love.graphics.newShader, CRT_SHADER_CODE)
 	M.crt_shader = crt_ok and crt or nil
+	local ov_ok, ov = pcall(love.graphics.newShader, CRT_OVERLAY_SHADER_CODE)
+	M.crt_overlay_shader = ov_ok and ov or nil
 
 	-- Furniture / rug sprites (2dpixx individual PNGs)
 	for _, name in ipairs({
@@ -478,6 +522,154 @@ function M.draw_crt_power_on(progress, draw_fn)
 	love.graphics.setShader(M.crt_shader)
 	love.graphics.draw(M.crt_canvas, 0, 0)
 	love.graphics.setShader()
+end
+
+-- Render `draw_fn` through the steady CRT-filter overlay (scanlines/curvature/
+-- vignette). Same capture-and-blit approach as the power-on, but with a fixed
+-- filter instead of the unfold. Used by the boot screen.
+function M.draw_crt_overlay(draw_fn)
+	if not M.crt_overlay_shader then
+		draw_fn()
+		return
+	end
+
+	local w, h = love.graphics.getDimensions()
+	if not M.crt_canvas or M.crt_canvas:getWidth() ~= w or M.crt_canvas:getHeight() ~= h then
+		M.crt_canvas = love.graphics.newCanvas(w, h)
+	end
+
+	local prev_canvas = love.graphics.getCanvas()
+	love.graphics.setCanvas(M.crt_canvas)
+	love.graphics.clear(0, 0, 0, 1)
+	draw_fn()
+	love.graphics.setCanvas(prev_canvas)
+
+	love.graphics.setColor(1, 1, 1, 1)
+	M.crt_overlay_shader:send("tex_size", { w, h })
+	M.crt_overlay_shader:send("time", love.timer.getTime())
+	love.graphics.setShader(M.crt_overlay_shader)
+	love.graphics.draw(M.crt_canvas, 0, 0)
+	love.graphics.setShader()
+end
+
+-- ---- "flashbang" handoff (boot screen -> title screen) ----
+-- A quick white flash whose "in" half plays over the boot screen and whose
+-- "out" half fades away over the title screen, hiding the cut between them.
+
+function M.flash_begin()
+	M.intro_flash = { t = 0, phase = "in", dur_in = 0.12, dur_out = 0.5 }
+end
+
+-- Advance the flash. Returns "switch" the moment the white-out peaks (the caller
+-- should change screens then), "done" when the fade-out finishes, else nil.
+function M.flash_update(dt)
+	local f = M.intro_flash
+	if not f then
+		return nil
+	end
+	f.t = f.t + dt
+	if f.phase == "in" then
+		if f.t >= f.dur_in then
+			f.phase = "out"
+			f.t = 0
+			return "switch"
+		end
+	elseif f.t >= f.dur_out then
+		M.intro_flash = nil
+		return "done"
+	end
+	return nil
+end
+
+function M.flash_active()
+	return M.intro_flash ~= nil
+end
+
+-- Draw the white flash overlay at its current alpha (call last, on top).
+function M.draw_intro_flash()
+	local f = M.intro_flash
+	if not f then
+		return
+	end
+	local a
+	if f.phase == "in" then
+		a = math.min(1, f.t / f.dur_in)
+	else
+		a = 1 - math.min(1, f.t / f.dur_out)
+	end
+	if a <= 0 then
+		return
+	end
+	local w, h = love.graphics.getDimensions()
+	love.graphics.setColor(1, 1, 1, a)
+	love.graphics.rectangle("fill", 0, 0, w, h)
+	love.graphics.setColor(1, 1, 1, 1)
+end
+
+-- ---- shared title banner ----
+-- The "TERMINAL MYSTERY" ASCII banner is drawn at one canonical position by both
+-- the boot screen and the title screen, so the flashbang hand-off keeps it fixed.
+
+local BANNER_OUTLINE = { 0x39 / 255, 0x35 / 255, 0x52 / 255 }
+local BANNER_MAX_H_FRAC = 0.42 -- banner is capped to this fraction of window height
+
+-- Compute the banner's layout for a cw×ch window: its scale (fit to both width
+-- and height so it never clips, even at the min resolution), block metrics, and
+-- position. Returned `bottom` is where content below (buttons/console) starts.
+function M.title_banner_layout(cw, ch)
+	local font = M.font_mono_big or M.font_big or M.font
+	local lines = Banner.lines
+	local maxw = 0
+	for _, l in ipairs(lines) do
+		maxw = math.max(maxw, font:getWidth(l))
+	end
+	local base_line_h = font:getHeight() * 1.08
+	local base_block_h = #lines * base_line_h
+	local scale = math.min(1.0, (cw - 80) / math.max(1, maxw), (ch * BANNER_MAX_H_FRAC) / base_block_h)
+	local block_h = base_block_h * scale
+	local cx = cw / 2
+	local cy = ch * 0.33 -- proportional so it stays on-screen at any height
+	local top = cy - block_h / 2
+	return {
+		font = font,
+		scale = scale,
+		line_h = base_line_h * scale,
+		block_w = maxw * scale,
+		block_h = block_h,
+		cx = cx,
+		top = top,
+		bottom = top + block_h,
+	}
+end
+
+-- Draw the banner for a cw×ch window in `fill` with a dark outline (the
+-- LazyVim-style outlined block look). `count` limits how many lines are revealed
+-- (nil = all); hidden lines still reserve their space so revealed lines stay at
+-- their final position. Returns the block's bottom y.
+function M.draw_title_banner(cw, ch, fill, count)
+	local L = M.title_banner_layout(cw, ch)
+	local prev = love.graphics.getFont()
+	love.graphics.setFont(L.font)
+	local lines = Banner.lines
+	count = count or #lines
+	local left = L.cx - L.block_w / 2
+	local o = L.scale
+	local y = L.top
+	for i = 1, math.min(count, #lines) do
+		local l = lines[i]
+		if l ~= "" then
+			love.graphics.setColor(BANNER_OUTLINE)
+			for _, d in ipairs({ { -o, 0 }, { o, 0 }, { 0, -o }, { 0, o }, { -o, -o }, { o, -o }, { -o, o }, { o, o } }) do
+				love.graphics.print(l, left + d[1], y + d[2], 0, L.scale, L.scale)
+			end
+			love.graphics.setColor(fill)
+			love.graphics.print(l, left, y, 0, L.scale, L.scale)
+		end
+		y = y + L.line_h
+	end
+	love.graphics.setColor(1, 1, 1, 1)
+	love.graphics.setFont(prev)
+	return L.bottom
 end
 
 function M.terminal_text_width()

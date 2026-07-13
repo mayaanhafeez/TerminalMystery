@@ -14,6 +14,7 @@ local TEXT_COLOR = {0xe0/255, 0xde/255, 0xf4/255}
 local TEXT_OUTLINE = {0x39/255, 0x35/255, 0x52/255}
 local HIGHLIGHT_COLOR = {0x3e/255, 0x8f/255, 0xb0/255}
 local DISABLED_COLOR = {0.5, 0.5, 0.5}
+local BANNER_FILL = {0x9c/255, 0xcf/255, 0xd8/255} -- foam, matches the title screen
 
 local function get_button_size(label)
   local font = love.graphics.getFont()
@@ -82,6 +83,17 @@ function M.enter()
   save_data = Save.load_state("save_data.txt")
 end
 
+local HEADING = "HOW WILL YOU BEGIN?"
+local HEADING_SCALE = 1.4
+
+-- Where the heading sits for a cw×ch window; `bottom` is where the buttons
+-- start just beneath it.
+local function heading_layout(cw, ch)
+  local h = Render.font_big:getHeight() * HEADING_SCALE
+  local cy = ch * 0.40
+  return { cy = cy, top = cy - h / 2, bottom = cy + h / 2 }
+end
+
 function M.draw()
   --get screen middle
   local cw,ch = love.graphics.getDimensions()
@@ -93,6 +105,13 @@ function M.draw()
   love.graphics.clear(0,0,0,1)
   Render.draw_menu_background(cw, ch, true)
   local old_font = love.graphics.getFont()
+  -- Heading that frames the New Game / Continue choice, with the buttons right
+  -- beneath it.
+  local hl = heading_layout(cw, ch)
+  love.graphics.setFont(Render.font_big)
+  local hx = center.x - (Render.font_big:getWidth(HEADING) * HEADING_SCALE) / 2
+  print_outlined(HEADING, hx, hl.top, BANNER_FILL, HEADING_SCALE)
+
   love.graphics.setFont(Render.font_big)
   for _, button in ipairs(M.buttons) do
     local this_button_size = {w = button.size.w,h= button.size.h}
@@ -161,6 +180,8 @@ function M.keypressed(key)
   end
 end
 
+local BTN_GAP = 28 -- vertical gap between stacked buttons
+
 function M.load_buttons()
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_big)
@@ -168,10 +189,16 @@ function M.load_buttons()
   local new_game_size = get_button_size("New Game")
   local back_size = get_button_size("Back")
   love.graphics.setFont(old_font)
+  -- Stack the buttons, horizontally centered, right below the heading.
+  local cw, ch = love.graphics.getDimensions()
+  local start_y = heading_layout(cw, ch).bottom + 36
+  local continue_y = start_y + continue_size.h / 2
+  local new_game_y = continue_y + continue_size.h / 2 + BTN_GAP + new_game_size.h / 2
+  local back_y = new_game_y + new_game_size.h / 2 + BTN_GAP + back_size.h / 2
   M.buttons = {
-    {label = "Continue From Save", size = continue_size, position = {x=padding + continue_size.w/2, y= center.y - continue_size.h/2 - padding}, action = function() load_from_save() end},
-    {label = "New Game", size = new_game_size, position = {x=padding + new_game_size.w/2, y= center.y}, action = function() start_new_game() end},
-    {label = "Back", size = back_size, position = {x=padding + back_size.w/2, y= center.y + padding + (back_size.h/2)}, action = function() Screen.set("play") end},
+    {label = "Continue From Save", size = continue_size, position = {x=center.x, y=continue_y}, action = function() load_from_save() end},
+    {label = "New Game", size = new_game_size, position = {x=center.x, y=new_game_y}, action = function() start_new_game() end},
+    {label = "Back", size = back_size, position = {x=center.x, y=back_y}, action = function() Screen.set("play") end},
   }
 end
 

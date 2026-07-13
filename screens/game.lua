@@ -15,9 +15,13 @@ local cursor_timer = 0
 -- `duration`; the shader progress runs 0->1 for "on" and 1->0 for "off". While
 -- active, input is ignored; when an "off" run finishes it hands off to "play".
 local crt = { active = false, mode = "on", t = 0, duration = 0.8 }
--- One-shot guard: a keypress that skips the CRT also fires a paired textinput
--- for printable keys; this swallows that char so it isn't typed into the prompt.
+-- One-shot guard: a keypress that skips the CRT/intro also fires a paired
+-- textinput for printable keys; this swallows that char so it isn't typed.
 local crt_swallow_text = false
+
+-- New-game intro typewriter: reveals the opening narration char-by-char over
+-- ~12s. Skippable by any key / mouse press. Inactive for restored games.
+local intro = { active = false }
 local INTRO = [[=== TERMINAL MYSTERY ===
 
 Strictly.ai just closed its Series C. At the launch party in the
@@ -101,6 +105,120 @@ local function rewrap_terminal()
 		for _, line in ipairs(wrapped) do
 			table.insert(term.lines, { text = line, kind = msg.kind })
 		end
+	end
+end
+
+-- First `n` UTF-8 characters of `s` (byte-safe, so multibyte glyphs like the em
+-- dash are never split mid-sequence while typing).
+local function utf8_prefix(s, n)
+	if n <= 0 then
+		return ""
+	end
+	local byte = utf8.offset(s, n + 1)
+	return byte and s:sub(1, byte - 1) or s
+end
+
+-- Rebuild the terminal to show the intro typed so far: completed segments in
+-- full plus the partially-typed current segment.
+local function render_intro()
+	term.messages = {}
+	term.lines = {}
+	for i = 1, math.min(intro.seg - 1, #intro.segments) do
+		push_text(intro.segments[i].text, intro.segments[i].kind)
+	end
+	if intro.seg <= #intro.segments then
+		local s = intro.segments[intro.seg]
+		push_text(utf8_prefix(s.text, intro.char), s.kind)
+	end
+end
+
+local INTRO_TYPING_SECONDS = 18 -- time spent actually typing (excludes pauses)
+local INTRO_PARA_PAUSE = 1.0 -- extra hold after each paragraph
+
+-- Split prose into paragraphs on blank lines (soft single newlines are kept and
+-- reflowed by wrap_text, matching how the terminal normally renders it).
+local function split_paragraphs(text)
+	local paras = {}
+	for p in (text .. "\n\n"):gmatch("(.-)\n\n") do
+		if p ~= "" then
+			paras[#paras + 1] = p
+		end
+	end
+	return paras
+end
+
+-- Begin the typewriter reveal of the opening narration (new game only). Each
+-- paragraph types out, then a blank line appears and the reveal pauses.
+local function start_intro()
+	local segments = {}
+	local function add_block(text, kind)
+		for _, p in ipairs(split_paragraphs(text)) do
+			segments[#segments + 1] = { text = p, kind = kind }
+			-- Blank spacer after the paragraph; the pause lands on it, so the
+			-- gap shows first and then the reveal holds.
+			segments[#segments + 1] = { text = "", kind = kind, pause_after = INTRO_PARA_PAUSE }
+		end
+	end
+	add_block(INTRO, "system")
+	add_block(World.rooms.foyer.description, "output")
+
+	local total = 0
+	for _, s in ipairs(segments) do
+		s.len = utf8.len(s.text) or #s.text
+		total = total + s.len
+	end
+	intro = {
+		active = true,
+		segments = segments,
+		seg = 1,
+		char = 0,
+		acc = 0,
+		pause = 0,
+		cps = math.max(1, total / INTRO_TYPING_SECONDS),
+	}
+	render_intro()
+end
+
+-- Reveal the whole intro at once and end the animation (skip / natural finish).
+local function finish_intro()
+	intro.active = false
+	intro.seg = #intro.segments + 1
+	render_intro()
+end
+
+local function advance_intro(dt)
+	-- Hold on a paragraph pause before typing resumes.
+	if intro.pause and intro.pause > 0 then
+		intro.pause = intro.pause - dt
+		if intro.pause > 0 then
+			return
+		end
+		intro.pause = 0
+	end
+
+	intro.acc = intro.acc + dt * intro.cps
+	local changed = false
+	while intro.active and intro.acc >= 1 do
+		local s = intro.segments[intro.seg]
+		if intro.char < s.len then
+			intro.char = intro.char + 1
+			intro.acc = intro.acc - 1
+			changed = true
+		else
+			-- Segment fully revealed; advance, honoring any pause it carries.
+			intro.seg = intro.seg + 1
+			intro.char = 0
+			changed = true
+			if intro.seg > #intro.segments then
+				intro.active = false
+			elseif s.pause_after and s.pause_after > 0 then
+				intro.pause = s.pause_after
+				break
+			end
+		end
+	end
+	if changed then
+		render_intro()
 	end
 end
 
@@ -198,6 +316,9 @@ function M.update(dt)
 			end
 		end
 	end
+	if intro.active then
+		advance_intro(dt)
+	end
 	if state.start_time and not state.won then
 		state.elapsed = love.timer.getTime() - state.start_time
 	end
@@ -239,6 +360,10 @@ function M.text_input(t)
 		crt_swallow_text = false
 		return
 	end
+	if intro.active then
+		finish_intro()
+		return
+	end
 	if state.popup_item then
 		return
 	end
@@ -259,6 +384,11 @@ end
 function M.keypressed(key)
 	if crt.active then
 		M.crt_skip()
+		crt_swallow_text = true
+		return
+	end
+	if intro.active then
+		finish_intro()
 		crt_swallow_text = true
 		return
 	end
@@ -419,6 +549,10 @@ function M.mousepressed(x, y, button)
 		M.crt_skip()
 		return
 	end
+	if intro.active then
+		finish_intro()
+		return
+	end
 	if button ~= 1 or not state.popup_item then
 		return
 	end
@@ -448,15 +582,13 @@ function M.start_new()
 		tab_candidates = nil,
 		tab_index = nil,
 	}
-	push_text(INTRO, "system")
-	push_text("", "output")
-	push_text(World.rooms.foyer.description, "output")
-	push_text("", "output")
+	start_intro()
 	best = load_best()
   M.state = state
 end
 
 function M.start_from_save(save_data)
+  intro = { active = false } -- restored games skip the typewriter intro
   state = World.new_state()
 
   state.current_room = save_data.current_room
