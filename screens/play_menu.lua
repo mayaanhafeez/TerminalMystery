@@ -2,68 +2,27 @@ Save = require("save")
 Screen = require("screen")
 Render = require("render")
 
-local aspect_ratio = 0.2
 local padding = 80
+local PAD_X_RATIO, PAD_Y_RATIO = 0.35, 0.12 -- hitbox padding around the text, proportional to font height
+local HOVER_SCALE = 1.18
 local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
-local button_size = {w = ((24/9)*screen_size.w)*aspect_ratio, h = screen_size.h*aspect_ratio}
 local save_data = nil
 
-local function get_button_size()
-  return button_size
+-- Rosé Pine accents
+local TEXT_COLOR = {0xe0/255, 0xde/255, 0xf4/255}
+local TEXT_OUTLINE = {0x39/255, 0x35/255, 0x52/255}
+local HIGHLIGHT_COLOR = {0x3e/255, 0x8f/255, 0xb0/255}
+local DISABLED_COLOR = {0.5, 0.5, 0.5}
+
+local function get_button_size(label)
+  local font = love.graphics.getFont()
+  local pad_x = font:getHeight() * PAD_X_RATIO
+  local pad_y = font:getHeight() * PAD_Y_RATIO
+  return {w = font:getWidth(label) + pad_x * 2, h = font:getHeight() + pad_y * 2, pad_x = pad_x, pad_y = pad_y}
 end
 
 local M = {}
-
-local function draw_button_border(x, y, w, h)
-	local B = 11
-	local u = 2 -- pixel unit for outlines / bevel
-	local edge = { 0.10, 0.08, 0.06 }
-	local body = { 0.42, 0.30, 0.18 }
-	local hi = { 0.64, 0.48, 0.28 }
-	local sh = { 0.24, 0.16, 0.09 }
-
-	-- body bands framing the opening (top / bottom / left / right)
-	love.graphics.setColor(body)
-	love.graphics.rectangle("fill", x, y, w, B)
-	love.graphics.rectangle("fill", x, y + h - B, w, B)
-	love.graphics.rectangle("fill", x, y, B, h)
-	love.graphics.rectangle("fill", x + w - B, y, B, h)
-
-	-- outer dark outline
-	love.graphics.setColor(edge)
-	love.graphics.rectangle("fill", x, y, w, u)
-	love.graphics.rectangle("fill", x, y + h - u, w, u)
-	love.graphics.rectangle("fill", x, y, u, h)
-	love.graphics.rectangle("fill", x + w - u, y, u, h)
-
-	-- bevel: highlight along top + left, shadow along bottom + right
-	love.graphics.setColor(hi)
-	love.graphics.rectangle("fill", x + u, y + u, w - 2 * u, u)
-	love.graphics.rectangle("fill", x + u, y + u, u, h - 2 * u)
-	love.graphics.setColor(sh)
-	love.graphics.rectangle("fill", x + u, y + h - 2 * u, w - 2 * u, u)
-	love.graphics.rectangle("fill", x + w - 2 * u, y + u, u, h - 2 * u)
-
-	-- inner dark outline around the opening
-	love.graphics.setColor(edge)
-	local ix, iy, iw, ih = x + B - u, y + B - u, w - 2 * (B - u), h - 2 * (B - u)
-	love.graphics.rectangle("fill", ix, iy, iw, u)
-	love.graphics.rectangle("fill", ix, iy + ih - u, iw, u)
-	love.graphics.rectangle("fill", ix, iy, u, ih)
-	love.graphics.rectangle("fill", ix + iw - u, iy, u, ih)
-
-	-- corner studs
-	local s = 5
-	love.graphics.setColor(hi)
-	for _, c in ipairs({ { x + u + 1, y + u + 1 }, { x + w - u - 1 - s, y + u + 1 },
-		{ x + u + 1, y + h - u - 1 - s }, { x + w - u - 1 - s, y + h - u - 1 - s } }) do
-		love.graphics.rectangle("fill", c[1], c[2], s, s)
-		love.graphics.setColor(edge)
-		love.graphics.rectangle("fill", c[1] + s - 1, c[2] + s - 1, 1, 1)
-		love.graphics.setColor(hi)
-	end
-end
 
 local function load_from_save()
   save_data = Save.load_state("save_data.txt")
@@ -96,24 +55,25 @@ local function button_selected()
   return nil
 end
 
-local function draw_button(button, color, this_button_size, button_position)
-  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
-  local color1= color[1]
-  local color2= color[2]
-  local color3= color[3]
-
-  if save_data == nil and button.label == "Continue From Save" then
-    love.graphics.setColor(0.5,0.5,0.5)
-  else
-    love.graphics.setColor(color1,color2,color3)
+-- Draws text with a solid 1px outline behind the fill color.
+local function print_outlined(text, x, y, fill_color, scale)
+  scale = scale or 1
+  local o = scale
+  love.graphics.setColor(TEXT_OUTLINE[1], TEXT_OUTLINE[2], TEXT_OUTLINE[3], 1)
+  for _, d in ipairs({ {-o,0},{o,0},{0,-o},{0,o},{-o,-o},{o,-o},{-o,o},{o,o} }) do
+    love.graphics.print(text, x + d[1], y + d[2], 0, scale, scale)
   end
-  love.graphics.rectangle("fill", button_position.x, button_position.y, this_button_size.w, this_button_size.h, 5)
-  local label = button.label
-  local font = love.graphics.getFont()
-  local text_position = {x = button_position.x + (this_button_size.w - font:getWidth(label)) /2, y= button_position.y + (this_button_size.h - font:getHeight()) /2}
-  love.graphics.setColor(0,0,0)
-  love.graphics.print(label, text_position.x, text_position.y)
-  draw_button_border(button_position.x, button_position.y, this_button_size.w, this_button_size.h)
+  love.graphics.setColor(fill_color[1], fill_color[2], fill_color[3], 1)
+  love.graphics.print(text, x, y, 0, scale, scale)
+end
+
+local function draw_button(button, color, this_button_size, button_position, scale)
+  scale = scale or 1
+  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
+  local tx = button_position.x + button.size.pad_x * scale
+  local ty = button_position.y + button.size.pad_y * scale
+  local disabled = save_data == nil and button.label == "Continue From Save"
+  print_outlined(button.label, tx, ty, disabled and DISABLED_COLOR or color, scale)
 end
 
 M.buttons = {}
@@ -124,8 +84,6 @@ end
 
 function M.draw()
   --get screen middle
-  local button_color = {0.91, 0.87, 0.78}
-  local hover_color = {221/255, 208/255, 180/255}
   local cw,ch = love.graphics.getDimensions()
   if screen_size.w~=cw or screen_size.h~=ch then
     screen_size.w, screen_size.h = cw,ch
@@ -134,20 +92,23 @@ function M.draw()
   end
   love.graphics.clear(0,0,0,1)
   Render.draw_menu_background(cw, ch, true)
+  local old_font = love.graphics.getFont()
+  love.graphics.setFont(Render.font_big)
   for _, button in ipairs(M.buttons) do
     local this_button_size = {w = button.size.w,h= button.size.h}
     if (button_selected()) then
       if (button.label == button_selected().label) then
-        this_button_size = {w =this_button_size.w * 1.03, h =this_button_size.h *1.03}
-        draw_button(button,hover_color,this_button_size, button.position)
+        this_button_size = {w =this_button_size.w * HOVER_SCALE, h =this_button_size.h *HOVER_SCALE}
+        draw_button(button, HIGHLIGHT_COLOR, this_button_size, button.position, HOVER_SCALE)
         this_button_size = {w = button.size.w,h= button.size.h}
       else
-        draw_button(button, button_color, this_button_size, button.position)
+        draw_button(button, TEXT_COLOR, this_button_size, button.position)
       end
     else
-      draw_button(button, button_color, this_button_size, button.position)
+      draw_button(button, TEXT_COLOR, this_button_size, button.position)
     end
   end
+  love.graphics.setFont(old_font)
 end
 
 function M.mousepressed(_, _, mouse_button)
@@ -201,10 +162,16 @@ function M.keypressed(key)
 end
 
 function M.load_buttons()
+  local old_font = love.graphics.getFont()
+  love.graphics.setFont(Render.font_big)
+  local continue_size = get_button_size("Continue From Save")
+  local new_game_size = get_button_size("New Game")
+  local back_size = get_button_size("Back")
+  love.graphics.setFont(old_font)
   M.buttons = {
-    {label = "Continue From Save", size = get_button_size(), position = {x=center.x, y= center.y - button_size.h/2 - padding}, action = function() load_from_save() end},
-    {label = "New Game", size = get_button_size() , position = {x=center.x, y= center.y}, action = function() start_new_game() end},
-    {label = "Back", size = get_button_size(), position = {x=center.x, y= center.y + padding + (button_size.h/2)}, action = function() Screen.set("play") end},
+    {label = "Continue From Save", size = continue_size, position = {x=padding + continue_size.w/2, y= center.y - continue_size.h/2 - padding}, action = function() load_from_save() end},
+    {label = "New Game", size = new_game_size, position = {x=padding + new_game_size.w/2, y= center.y}, action = function() start_new_game() end},
+    {label = "Back", size = back_size, position = {x=padding + back_size.w/2, y= center.y + padding + (back_size.h/2)}, action = function() Screen.set("play") end},
   }
 end
 
