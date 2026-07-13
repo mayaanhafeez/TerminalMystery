@@ -1,7 +1,6 @@
 -- meta.lua — help, echo, exit, accuse
 
 local World = require("world")
-local Screen = require("screen")
 
 local function help(state, _)
     local lines = {
@@ -55,7 +54,8 @@ local function exit(_, args)
   elseif args[1] == "save" then
     Save.save_state(GameScreen.state, "save_data.txt")
   end
-  Screen.set("play")
+  -- Play the CRT power-off, then the game screen hands off to the title.
+  GameScreen.request_exit_to_play()
   return ""
 end
 

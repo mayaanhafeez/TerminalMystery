@@ -127,6 +127,8 @@ local ASSET_SPRITES = {
 M.slack_bg = nil -- Slack popup background (assets/slack-bg.png), loaded in M.load
 M.menu_bg = nil -- Title/play-menu background (assets/background.png), loaded in M.load
 M.menu_glow_shader = nil -- neon monitor-glow shader over M.menu_bg, loaded in M.load
+M.crt_shader = nil -- CRT power-on shader for the game intro, loaded in M.load
+M.crt_canvas = nil -- full-window canvas the game frame is captured into for CRT
 
 -- Where the monitor screen sits in assets/background.png, as a UV-space
 -- rect (xMin, yMin, xMax, yMax, each 0..1) of the source image. The glow
@@ -185,6 +187,76 @@ local MENU_GLOW_SHADER_CODE = [[
 		result *= mix(0.7, 1.0, vig);
 
 		return vec4(result, pixel.a) * color;
+	}
+]]
+
+-- CRT power-on shader for the game intro. Given a `progress` uniform (0..1) it
+-- transforms the captured game frame into an old-monitor switch-on: the picture
+-- collapses to a bright horizontal line, snaps open vertically, then the image
+-- fills in with scanlines, a bright flash, and a settle to normal. Also applies
+-- a light barrel curve + scanlines while active. Filled in during implementation.
+local CRT_SHADER_CODE = [[
+	uniform float progress;   // 0 = fully off, 1 = fully on
+	uniform vec2 tex_size;    // canvas dimensions in px (for scanline frequency)
+
+	vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords)
+	{
+		// Overall CRT-filter strength: full while switching on, faded to 0 once
+		// the picture has settled — so the effect only "lives" during the intro.
+		float crt = 1.0 - smoothstep(0.6, 1.0, progress);
+
+		// Barrel/curvature distortion of the whole frame (stronger while on).
+		vec2 cc = uv - 0.5;
+		float r2 = dot(cc, cc);
+		vec2 duv = cc * (1.0 + r2 * 0.18 * crt) + 0.5;
+		vec2 c = duv - 0.5;
+
+		// Vertical unfold. Ease-IN (pow > 1): crawls open near the center line,
+		// then whips out to the top/bottom edges — the non-uniform CRT snap.
+		// Opening finishes by progress ~0.6, leaving a settle/flash tail.
+		float a = clamp(progress / 0.6, 0.0, 1.0);
+		float openY = max(pow(a, 2.6), 0.0016);
+
+		// The currently-lit vertical band (half-height). Outside it, dark bezel.
+		float band = 0.5 * openY;
+		if (abs(c.y) > band) {
+			return vec4(0.0, 0.0, 0.0, 1.0);
+		}
+
+		// Un-squash: stretch the band back out so the picture springs open from
+		// the center line.
+		vec2 suv = vec2(c.x + 0.5, c.y / openY + 0.5);
+		// Curvature can push samples past the frame — treat those as bezel.
+		if (suv.x < 0.0 || suv.x > 1.0) {
+			return vec4(0.0, 0.0, 0.0, 1.0);
+		}
+
+		// Chromatic aberration: split R/B horizontally (scaled by filter).
+		float ca = 0.004 * crt;
+		vec3 col;
+		col.r = Texel(tex, vec2(clamp(suv.x + ca, 0.0, 1.0), suv.y)).r;
+		col.g = Texel(tex, suv).g;
+		col.b = Texel(tex, vec2(clamp(suv.x - ca, 0.0, 1.0), suv.y)).b;
+
+		// Bright bloom while nearly-closed (the hot scan line), plus a short
+		// over-bright flash as the screen finishes opening, then settles to 1.0.
+		float lineGlow = 1.0 - openY;
+		float flash = smoothstep(0.45, 0.6, progress) * (1.0 - smoothstep(0.6, 0.85, progress));
+		col *= 1.0 + lineGlow * 2.5 + flash * 0.5;
+
+		// Hot green-white core along the collapsing scan line, early on.
+		float core = smoothstep(band, 0.0, abs(c.y)) * lineGlow;
+		col += vec3(0.55, 1.0, 0.65) * core * 0.8;
+
+		// Scanlines, present through the intro and fading as it completes.
+		float scan = 0.8 + 0.2 * sin(duv.y * tex_size.y * 3.14159);
+		col *= mix(1.0, scan, crt * 0.6);
+
+		// Vignette so the tube edges recede into darkness (intro only).
+		float vig = 1.0 - smoothstep(0.35, 0.85, length(cc));
+		col *= mix(1.0, vig, crt * 0.5);
+
+		return vec4(col, 1.0) * color;
 	}
 ]]
 
@@ -322,6 +394,10 @@ function M.load()
 	local shader_ok, shader = pcall(love.graphics.newShader, MENU_GLOW_SHADER_CODE)
 	M.menu_glow_shader = shader_ok and shader or nil
 
+	-- CRT power-on shader + full-window capture canvas (sized in M.resize).
+	local crt_ok, crt = pcall(love.graphics.newShader, CRT_SHADER_CODE)
+	M.crt_shader = crt_ok and crt or nil
+
 	-- Furniture / rug sprites (2dpixx individual PNGs)
 	for _, name in ipairs({
 		"dresser_flower",
@@ -370,6 +446,38 @@ function M.draw_menu_background(cw, ch, darken)
 		love.graphics.setColor(0, 0, 0, 0.55)
 		love.graphics.rectangle("fill", 0, 0, cw, ch)
 	end
+end
+
+-- Render `draw_fn` (which draws a full game frame) through the CRT power-on
+-- effect at the given `progress` (0..1): capture the frame into M.crt_canvas,
+-- then blit it back to the screen through M.crt_shader so the game appears to
+-- switch on like an old monitor.
+function M.draw_crt_power_on(progress, draw_fn)
+	if not M.crt_shader then
+		draw_fn()
+		return
+	end
+
+	local w, h = love.graphics.getDimensions()
+	if not M.crt_canvas or M.crt_canvas:getWidth() ~= w or M.crt_canvas:getHeight() ~= h then
+		M.crt_canvas = love.graphics.newCanvas(w, h)
+	end
+
+	-- Capture the frame into our canvas (draw_fn restores to this target since
+	-- M.draw now restores the previous canvas rather than forcing the screen).
+	local prev_canvas = love.graphics.getCanvas()
+	love.graphics.setCanvas(M.crt_canvas)
+	love.graphics.clear(0, 0, 0, 1)
+	draw_fn()
+	love.graphics.setCanvas(prev_canvas)
+
+	-- Blit the captured frame back through the CRT shader.
+	love.graphics.setColor(1, 1, 1, 1)
+	M.crt_shader:send("progress", progress)
+	M.crt_shader:send("tex_size", { w, h })
+	love.graphics.setShader(M.crt_shader)
+	love.graphics.draw(M.crt_canvas, 0, 0)
+	love.graphics.setShader()
 end
 
 function M.terminal_text_width()
@@ -1367,10 +1475,13 @@ end
 
 function M.draw(state, term, best)
 	-- Render the room view into its own virtual-resolution canvas first.
+	-- Restore to whatever canvas was active before (usually the screen, but the
+	-- CRT intro captures this whole frame into M.crt_canvas), not forced to nil.
+	local prev_canvas = love.graphics.getCanvas()
 	love.graphics.setCanvas(M.room_canvas)
 	love.graphics.clear()
 	draw_room_view(state)
-	love.graphics.setCanvas()
+	love.graphics.setCanvas(prev_canvas)
 
 	-- Now draw at native window resolution.
 	love.graphics.setColor(C.bg)

@@ -9,6 +9,15 @@ local state
 local term
 local best
 local cursor_timer = 0
+
+-- CRT switch animation. `mode` is "on" (power-on when the game screen is
+-- entered) or "off" (power-off when exiting back to the title). `t` counts up to
+-- `duration`; the shader progress runs 0->1 for "on" and 1->0 for "off". While
+-- active, input is ignored; when an "off" run finishes it hands off to "play".
+local crt = { active = false, mode = "on", t = 0, duration = 0.8 }
+-- One-shot guard: a keypress that skips the CRT also fires a paired textinput
+-- for printable keys; this swallows that char so it isn't typed into the prompt.
+local crt_swallow_text = false
 local INTRO = [[=== TERMINAL MYSTERY ===
 
 Strictly.ai just closed its Series C. At the launch party in the
@@ -145,7 +154,50 @@ end
 
 local M = {}
 
+-- Called by Screen.set("game"): kick off the CRT power-on intro. `start_new` /
+-- `start_from_save` have already built `state`/`term` by this point.
+function M.enter()
+	-- Start (or restart) the CRT switch-on animation from t = 0.
+	crt.active = true
+	crt.mode = "on"
+	crt.t = 0
+	crt_swallow_text = false
+end
+
+-- Skip the running CRT animation. A power-on jumps straight to the live game; a
+-- power-off jumps straight to the title. Called on any key / mouse press.
+function M.crt_skip()
+	if not crt.active then
+		return
+	end
+	crt.active = false
+	if crt.mode == "off" then
+		Screen.set("play")
+	end
+end
+
+-- Called by the `exit` command: play the CRT power-off, then go to the title.
+-- (Any save has already happened in the command handler.)
+function M.request_exit_to_play()
+	crt.active = true
+	crt.mode = "off"
+	crt.t = 0
+end
+
 function M.update(dt)
+	-- Clear the one-shot text-swallow (events for this frame already ran).
+	crt_swallow_text = false
+	-- Advance the CRT timer; on completion, a power-off hands off to the title.
+	if crt.active then
+		crt.t = crt.t + dt
+		if crt.t >= crt.duration then
+			crt.active = false
+			if crt.mode == "off" then
+				Screen.set("play")
+				return
+			end
+		end
+	end
 	if state.start_time and not state.won then
 		state.elapsed = love.timer.getTime() - state.start_time
 	end
@@ -165,10 +217,28 @@ function M.draw()
 		Render.resize(w, h)
 		rewrap_terminal()
 	end
-	Render.draw(state, term, best)
+	-- While a CRT switch is active, render the frame through the effect: "on"
+	-- runs progress 0->1, "off" runs 1->0. Otherwise draw normally.
+	if crt.active then
+		local frac = math.min(1, crt.t / crt.duration)
+		local progress = (crt.mode == "off") and (1 - frac) or frac
+		Render.draw_crt_power_on(progress, function()
+			Render.draw(state, term, best)
+		end)
+	else
+		Render.draw(state, term, best)
+	end
 end
 
 function M.text_input(t)
+	if crt.active then
+		M.crt_skip()
+		return
+	end
+	if crt_swallow_text then
+		crt_swallow_text = false
+		return
+	end
 	if state.popup_item then
 		return
 	end
@@ -187,6 +257,11 @@ function M.text_input(t)
 end
 
 function M.keypressed(key)
+	if crt.active then
+		M.crt_skip()
+		crt_swallow_text = true
+		return
+	end
 	if state.popup_item then
 		if key == "escape" then
 			state.popup_item = nil
@@ -340,6 +415,10 @@ function M.keypressed(key)
 end
 
 function M.mousepressed(x, y, button)
+	if crt.active then
+		M.crt_skip()
+		return
+	end
 	if button ~= 1 or not state.popup_item then
 		return
 	end

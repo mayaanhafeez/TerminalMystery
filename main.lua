@@ -6,18 +6,20 @@ Screen = require("screen")
 GameScreen = require("screens/game")
 PlayScreen = require("screens/play")
 PlayMenuScreen = require("screens/play_menu")
+BootScreen = require("screens/boot")
 Render = require("render")
 World = require("world")
 
 Screen.register("play", PlayScreen)
 Screen.register("game", GameScreen)
 Screen.register("play_menu", PlayMenuScreen)
+Screen.register("boot", BootScreen)
 
 function love.load()
 	love.keyboard.setKeyRepeat(true)
 	Render.load()
   GameScreen.start_new()
-  Screen.set("play")
+  Screen.set("boot")
 end
 
 function love.resize(w, h)
