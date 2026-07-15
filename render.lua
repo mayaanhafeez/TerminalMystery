@@ -1167,13 +1167,31 @@ local function draw_status_bar(state)
 	love.graphics.setFont(M.font_term)
 	love.graphics.setColor(C.status_text)
 	local y = M.H - M.STATUS_H + (M.STATUS_H - M.font_term:getHeight()) / 2
+	local GAP = 24
 
-	love.graphics.print("time:     " .. format_time(state.elapsed), M.PAD, y)
-	love.graphics.print("commands: " .. tostring(state.command_count), M.PAD + 240, y)
+	local time_str = "time: " .. format_time(state.elapsed)
+	love.graphics.print(time_str, M.PAD, y)
 
-	local hint = "PgUp/PgDn scroll  |  Up/Dn history  |  type `help`"
-	local hw = M.font_term:getWidth(hint)
-	love.graphics.print(hint, M.W - M.PAD - hw, y)
+	-- place "commands" right after the time string (dynamic, not a fixed offset)
+	local cmds_str = "commands: " .. tostring(state.command_count)
+	local cmds_x = M.PAD + M.font_term:getWidth(time_str) + GAP
+	love.graphics.print(cmds_str, cmds_x, y)
+	local cmds_right = cmds_x + M.font_term:getWidth(cmds_str)
+
+	-- right-aligned hint, degraded then dropped when it would collide with commands
+	local hints = {
+		"PgUp/PgDn scroll | Up/Dn history | type `help`",
+		"PgUp/PgDn scroll | type `help`",
+		"type `help`",
+	}
+	for _, hint in ipairs(hints) do
+		local hw = M.font_term:getWidth(hint)
+		local hx = M.W - M.PAD - hw
+		if hx >= cmds_right + GAP then
+			love.graphics.print(hint, hx, y)
+			break
+		end
+	end
 end
 
 local function draw_win_screen(state, best)
