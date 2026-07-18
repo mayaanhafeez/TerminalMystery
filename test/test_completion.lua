@@ -119,18 +119,18 @@ end)
 -- -----------------------------------------------------------------------
 T.suite("mv / cp — destination room completion")
 
-T.test("mv dst suggests visited rooms", function()
+T.test("mv dst suggests visited rooms with a trailing slash", function()
     local state = make_state("sunroom", {"sunroom", "foyer", "cellar"})
     local c = completions(state, "mv espresso_bar.txt ")
-    T.has(c, "mv espresso_bar.txt Wine Cellar ")
-    T.has(c, "mv espresso_bar.txt Entrance Hall ")
-    T.not_has(c, "mv espresso_bar.txt Home Office ")  -- not visited
+    T.has(c, "mv espresso_bar.txt Wine Cellar/")
+    T.has(c, "mv espresso_bar.txt Entrance Hall/")
+    T.not_has(c, "mv espresso_bar.txt Home Office/")  -- not visited
 end)
 
 T.test("mv dst offers ./ shorthand", function()
     local state = make_state("sunroom", {"sunroom"})
     local c = completions(state, "mv espresso_bar.txt ")
-    T.has(c, "mv espresso_bar.txt ./ ")
+    T.has(c, "mv espresso_bar.txt ./")
 end)
 
 T.test("mv dst .. offers ../ continuation", function()
@@ -139,25 +139,65 @@ T.test("mv dst .. offers ../ continuation", function()
     T.has(c, "mv espresso_bar.txt ../")
 end)
 
-T.test("mv dst ../ shows visited rooms under parent", function()
+T.test("mv dst ../ shows visited rooms under parent with a trailing slash", function()
     local state = make_state("sunroom", {"sunroom", "foyer", "cellar", "home_office"})
     local c = completions(state, "mv espresso_bar.txt ../")
-    T.has(c, "mv espresso_bar.txt ../Wine Cellar ")
-    T.has(c, "mv espresso_bar.txt ../Home Office ")
-    T.not_has(c, "mv espresso_bar.txt ../Den ")  -- not visited
+    T.has(c, "mv espresso_bar.txt ../Wine Cellar/")
+    T.has(c, "mv espresso_bar.txt ../Home Office/")
+    T.not_has(c, "mv espresso_bar.txt ../Den/")  -- not visited
 end)
 
 T.test("mv dst ../W filters to visited W-prefixed rooms", function()
     local state = make_state("home_office", {"home_office", "foyer", "cellar", "sunroom"})
     local c = completions(state, "mv draft_email.txt ../W")
-    T.has(c, "mv draft_email.txt ../Wine Cellar ")
-    T.not_has(c, "mv draft_email.txt ../Sunroom ")
+    T.has(c, "mv draft_email.txt ../Wine Cellar/")
+    T.not_has(c, "mv draft_email.txt ../Sunroom/")
 end)
 
 T.test("cp dst ../ works the same as mv", function()
     local state = make_state("home_office", {"home_office", "foyer", "cellar"})
     local c = completions(state, "cp draft_email.txt ../")
-    T.has(c, "cp draft_email.txt ../Wine Cellar ")
+    T.has(c, "cp draft_email.txt ../Wine Cellar/")
+end)
+
+T.test("cp dst Room/ lists the files inside that room", function()
+    local state = make_state("sunroom", {"sunroom", "foyer", "den"})
+    local c = completions(state, "cp espresso_bar.txt The Den/")
+    T.has(c, "cp espresso_bar.txt The Den/victim.txt ")
+    T.has(c, "cp espresso_bar.txt The Den/party_statements.txt ")
+end)
+
+T.test("cp dst Room/partial filters files inside that room", function()
+    local state = make_state("sunroom", {"sunroom", "foyer", "den"})
+    local c = completions(state, "cp espresso_bar.txt The Den/v")
+    T.has(c, "cp espresso_bar.txt The Den/victim.txt ")
+    T.not_has(c, "cp espresso_bar.txt The Den/party_statements.txt ")
+end)
+
+T.test("cp dst lists files inside a multi-word room (Home Office/)", function()
+    local state = make_state("foyer", {"foyer", "home_office"})
+    local c = completions(state, "cp welcome.txt Home Office/")
+    T.has(c, "cp welcome.txt Home Office/draft_email.txt ")
+    T.has(c, "cp welcome.txt Home Office/repo_log.txt ")
+end)
+
+T.test("cp dst lists files inside a multi-word room (Wine Cellar/)", function()
+    local state = make_state("foyer", {"foyer", "cellar"})
+    local c = completions(state, "cp welcome.txt Wine Cellar/")
+    T.has(c, "cp welcome.txt Wine Cellar/badge.txt ")
+    T.has(c, "cp welcome.txt Wine Cellar/cellar_access_log.txt ")
+end)
+
+T.test("cp dst completes a multi-word room name with a trailing slash", function()
+    local state = make_state("foyer", {"foyer", "home_office"})
+    local c = completions(state, "cp welcome.txt Home")
+    T.has(c, "cp welcome.txt Home Office/")
+end)
+
+T.test("cat completes files inside a multi-word room without duplicating words", function()
+    local state = make_state("foyer", {"foyer", "home_office"})
+    local c = completions(state, "cat Home Office/d")
+    T.has(c, "cat Home Office/draft_email.txt ")
 end)
 
 -- -----------------------------------------------------------------------

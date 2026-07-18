@@ -46,11 +46,14 @@ function M.get_completions(state, input)
         return cursor
     end
 
-    -- File completion — supports "Room/file" cross-room paths.
-    local function complete_file()
+    -- File completion — supports "Room/file" cross-room paths. `part` is the
+    -- in-progress path (may contain spaces, e.g. "The Den/vic") and `pre` is the
+    -- already-typed text it should be appended to. Files end with a space,
+    -- directories (rooms) end with "/".
+    local function complete_file(part, pre)
         local result, seen = {}, {}
-        if partial:find("/", 1, true) then
-            local room_part, file_part = partial:match("^([^/]*)/(.*)$")
+        if part:find("/", 1, true) then
+            local room_part, file_part = part:match("^([^/]*)/(.*)$")
             local target_id
             if room_part == "." or room_part == "" then
                 target_id = state.current_room
@@ -68,56 +71,136 @@ function M.get_completions(state, input)
                 for _, item in ipairs(World.get_items_in_room(target_id, false)) do
                     if not seen[item.filename]
                         and item.filename:lower():sub(1, #file_lower) == file_lower then
-                        table.insert(result, before .. prefix .. "/" .. item.filename .. " ")
+                        table.insert(result, pre .. prefix .. "/" .. item.filename .. " ")
                         seen[item.filename] = true
                     end
                 end
             end
         else
+            local p_lower = part:lower()
             for _, item in ipairs(World.get_items_in_room(state.current_room, false)) do
-                if not seen[item.filename] and matches(item.filename) then
-                    table.insert(result, before .. item.filename .. " ")
+                if not seen[item.filename]
+                    and item.filename:lower():sub(1, #p_lower) == p_lower then
+                    table.insert(result, pre .. item.filename .. " ")
                     seen[item.filename] = true
                 end
             end
             for room_id, room in pairs(World.rooms) do
                 if state.visited[room_id] and room_id ~= state.current_room
-                    and not room.hidden and matches(room.name)
+                    and not room.hidden and room.name:lower():sub(1, #p_lower) == p_lower
                     and #World.get_items_in_room(room_id, false) > 0 then
-                    table.insert(result, before .. room.name .. "/")
+                    table.insert(result, pre .. room.name .. "/")
                 end
             end
         end
         return result
     end
 
-    -- Room completion for mv/cp destinations — supports "../Room" paths.
-    local function complete_room()
-        local result = {}
-        if partial:find("/", 1, true) then
-            local path_so_far, in_progress = partial:match("^(.*)/(.*)$")
-            local cursor = resolve_prefix(path_so_far)
-            local ip_lower = in_progress:lower()
-            for id, room in pairs(World.rooms) do
-                if state.visited[id] and not room.hidden
-                    and room.name:lower():sub(1, #ip_lower) == ip_lower then
-                    table.insert(result, before .. path_so_far .. "/" .. room.name .. " ")
+    -- Destination completion for mv/cp. A destination is a directory (room) or
+    -- a "Room/newname" path. Directories get a trailing "/"; once a room is
+    -- named ("Room/…"), we complete the file names inside it (trailing space).
+    -- Relative room paths ("..", "../Room") still complete to rooms.
+    local function complete_room(part, pre)
+        local result, seen = {}, {}
+        if part:find("/", 1, true) then
+            local path_so_far, in_progress = part:match("^(.*)/(.*)$")
+            local first = path_so_far:match("^([^/]*)") or ""
+            if first == "." or first == ".." then
+                -- Relative room navigation → complete reachable rooms.
+                local cursor = resolve_prefix(path_so_far)
+                local ip_lower = in_progress:lower()
+                for id, room in pairs(World.rooms) do
+                    if state.visited[id] and not room.hidden and not seen[room.name]
+                        and room.name:lower():sub(1, #ip_lower) == ip_lower then
+                        table.insert(result, pre .. path_so_far .. "/" .. room.name .. "/")
+                        seen[room.name] = true
+                    end
+                end
+            else
+                -- "Room/name" → completing a file name inside Room. List the
+                -- files already there (trailing space, they are files).
+                local rp_lower = path_so_far:lower()
+                local target_id
+                for id, r in pairs(World.rooms) do
+                    if id == rp_lower or r.name:lower() == rp_lower then
+                        target_id = id; break
+                    end
+                end
+                if target_id then
+                    local ip_lower = in_progress:lower()
+                    for _, item in ipairs(World.get_items_in_room(target_id, false)) do
+                        if not seen[item.filename]
+                            and item.filename:lower():sub(1, #ip_lower) == ip_lower then
+                            table.insert(result,
+                                pre .. path_so_far .. "/" .. item.filename .. " ")
+                            seen[item.filename] = true
+                        end
+                    end
                 end
             end
         else
-            if #partial > 0 and ("../"):sub(1, #partial) == partial then
-                table.insert(result, before .. "../")
+            local pl = part:lower()
+            if #part > 0 and ("../"):sub(1, #part) == part then
+                table.insert(result, pre .. "../")
             end
-            if ("./"):sub(1, #partial) == partial then
-                table.insert(result, before .. "./ ")
+            if ("./"):sub(1, #part) == part then
+                table.insert(result, pre .. "./")
             end
             for room_id, room in pairs(World.rooms) do
-                if state.visited[room_id] and not room.hidden and matches(room.name) then
-                    table.insert(result, before .. room.name .. " ")
+                if state.visited[room_id] and not room.hidden
+                    and room.name:lower():sub(1, #pl) == pl then
+                    table.insert(result, pre .. room.name .. "/")
                 end
             end
         end
         return result
+    end
+
+    -- Exit (room) completion for cd/ls — supports "../Room" and multi-word room
+    -- names. Rooms always end with "/".
+    local function complete_exits(part, pre)
+        local result, seen = {}, {}
+        if part:find("/", 1, true) then
+            local path_so_far, in_progress = part:match("^(.*)/(.*)$")
+            local cursor = resolve_prefix(path_so_far)
+            local ip_lower = in_progress:lower()
+            for _, exit_id in ipairs(World.get_exits(cursor)) do
+                local room = World.rooms[exit_id]
+                if not room.hidden and not seen[room.name]
+                    and room.name:lower():sub(1, #ip_lower) == ip_lower then
+                    table.insert(result, pre .. path_so_far .. "/" .. room.name .. "/")
+                    seen[room.name] = true
+                end
+            end
+        else
+            local pl = part:lower()
+            if #part > 0 and ("../"):sub(1, #part) == part then
+                table.insert(result, pre .. "../")
+            end
+            for _, exit_id in ipairs(World.get_exits(state.current_room)) do
+                local room = World.rooms[exit_id]
+                if not room.hidden and not seen[room.name]
+                    and room.name:lower():sub(1, #pl) == pl then
+                    table.insert(result, pre .. room.name .. "/")
+                    seen[room.name] = true
+                end
+            end
+        end
+        return result
+    end
+
+    -- The text of a single-path command's argument: everything after the
+    -- command word, with any leading flag tokens (e.g. rm -f) folded into the
+    -- prefix. Room names contain spaces, so we must not split on whitespace.
+    -- Returns part (in-progress argument), pre (text it appends to), or nil.
+    local function remainder()
+        local head, rest = input:match("^(%S+%s+)(.*)$")
+        if not head then return nil end
+        while true do
+            local flag, more = rest:match("^(%-%S+%s+)(.*)$")
+            if flag then head = head .. flag; rest = more else break end
+        end
+        return rest, head
     end
 
     -- Command name completion
@@ -143,57 +226,39 @@ function M.get_completions(state, input)
     end
 
     if cmd == "cd" or cmd == "ls" then
-        local result, seen = {}, {}
-        if partial:find("/", 1, true) then
-            -- Resolve everything before the last slash, then show exits of that room
-            local path_so_far, in_progress = partial:match("^(.*)/(.*)$")
-            local cursor = resolve_prefix(path_so_far)
-            local ip_lower = in_progress:lower()
-            for _, exit_id in ipairs(World.get_exits(cursor)) do
-                local room = World.rooms[exit_id]
-                if not room.hidden and not seen[room.name]
-                    and room.name:lower():sub(1, #ip_lower) == ip_lower then
-                    table.insert(result, before .. path_so_far .. "/" .. room.name .. "/")
-                    seen[room.name] = true
-                end
-            end
-        else
-            if #partial > 0 and ("../"):sub(1, #partial) == partial then
-                table.insert(result, before .. "../")
-            end
-            local exits = World.get_exits(state.current_room)
-            for _, exit_id in ipairs(exits) do
-                local room = World.rooms[exit_id]
-                if not room.hidden and not seen[room.name] and matches(room.name) then
-                    table.insert(result, before .. room.name .. "/")
-                    seen[room.name] = true
-                end
-            end
-        end
-        return result
+        local part, pre = remainder()
+        if not part or part:sub(1, 1) == "-" then return {} end
+        return complete_exits(part, pre)
 
     elseif cmd == "cat" or cmd == "rm" then
-        return complete_file()
+        local part, pre = remainder()
+        if not part or part:sub(1, 1) == "-" then return {} end
+        return complete_file(part, pre)
 
     elseif cmd == "sed" then
         -- Only offer file names once the s/// script has been typed (2nd non-flag arg).
         if non_flags >= 1 and not (has_trailing_space and non_flags == 0) then
-            return complete_file()
+            return complete_file(partial, before)
         end
         return {}
 
     elseif cmd == "grep" then
         if has_trailing_space and non_flags == 0 then return {} end
         if not has_trailing_space and non_flags <= 1 then return {} end
-        return complete_file()
+        return complete_file(partial, before)
 
     elseif cmd == "mv" or cmd == "cp" then
-        local on_src = (has_trailing_space and non_flags == 0)
-            or (not has_trailing_space and non_flags == 1)
-        local on_dst = (has_trailing_space and non_flags == 1)
-            or (not has_trailing_space and non_flags == 2)
-        if on_src then return complete_file() end
-        if on_dst then return complete_room() end
+        -- Source is the first token after the command; the destination is
+        -- everything after it (room names may contain spaces).
+        local head, rest = input:match("^(%S+%s+)(.*)$")
+        if not head then return {} end
+        local src, sep, dst = rest:match("^(%S+)(%s+)(.*)$")
+        if src then
+            return complete_room(dst, head .. src .. sep)
+        elseif rest:sub(1, 1) ~= "-" then
+            return complete_file(rest, head)
+        end
+        return {}
 
     elseif cmd == "accuse" then
         local after_cmd   = input:match("^%S+%s+(.*)$") or ""
