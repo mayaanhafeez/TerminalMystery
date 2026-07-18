@@ -33,33 +33,61 @@ end
 
 local function cp(state, args)
     if #args < 2 then
-        return "Usage: cp <file> <room>"
+        return "Usage: cp <file> <destination>  (destination may be a room, a new"
+            .. " name, or room/name)"
     end
-    local fname       = args[1]
-    local target_name = table.concat(args, " ", 2)
+    local src_path = args[1]
+    local dst_arg  = table.concat(args, " ", 2)
 
-    local item = World.get_item(state.current_room, fname)
-    if not item then return "cp: " .. fname .. ": no such file in this room" end
+    -- Resolve the source file (may be room/file).
+    local src_room_id, src_fname, err = World.resolve_file_path(state.current_room, src_path)
+    if err then return "cp: " .. err end
+    if not src_fname then return "cp: " .. src_path .. ": is a directory" end
 
-    local target_id, resolve_err = World.resolve_room_path(state.current_room, target_name)
-    if resolve_err then return "cp: " .. resolve_err end
-    if not state.visited[target_id] then
-        return "cp: " .. target_name .. ": no such visited room"
+    local item = World.get_item(src_room_id, src_fname)
+    if not item then return "cp: " .. src_path .. ": no such file" end
+
+    -- Determine destination room + filename, matching real `cp`:
+    --   * if the destination is a directory (room), copy into it under the
+    --     source's name;
+    --   * otherwise treat it as a target path/name (bare name → current room).
+    local dst_room_id, dst_fname
+    local as_room = World.resolve_room_path(state.current_room, dst_arg)
+    if as_room then
+        dst_room_id = as_room
+        dst_fname   = src_fname
+    else
+        local rid, fname, ferr = World.resolve_file_path(state.current_room, dst_arg)
+        if ferr then return "cp: " .. ferr end
+        dst_room_id = rid
+        dst_fname   = fname or src_fname
     end
-    if target_id == state.current_room then
-        return "cp: source and destination are the same room"
+
+    if not state.visited[dst_room_id] then
+        return "cp: " .. dst_arg .. ": no such visited room"
     end
-    if World.get_item(target_id, fname) then
-        return "cp: " .. fname .. " already exists in " .. World.rooms[target_id].name
+    if dst_room_id == src_room_id and dst_fname == src_fname then
+        return "cp: '" .. src_fname .. "' and '" .. dst_fname .. "' are the same file"
+    end
+    if World.get_item(dst_room_id, dst_fname) then
+        return "cp: " .. dst_fname .. " already exists in " .. World.rooms[dst_room_id].name
     end
 
     local copy = {}
     for k, v in pairs(item) do copy[k] = v end
-    copy.id     = item.id .. "_copy_" .. target_id
-    copy.room   = target_id
-    copy.copied = true
-    World.rooms[target_id].items[copy.filename] = copy
-    return "Copied " .. fname .. " to " .. World.rooms[target_id].name .. "."
+    -- Keep the original registry id so the copy rehydrates its content from
+    -- items.lua on load; uniqueness within a room is by filename.
+    copy.id       = item.id
+    copy.filename = dst_fname
+    copy.room     = dst_room_id
+    copy.copied   = true
+    World.rooms[dst_room_id].items[dst_fname] = copy
+
+    if dst_room_id == src_room_id then
+        return "Copied " .. src_fname .. " to " .. dst_fname .. "."
+    end
+    return "Copied " .. src_fname .. " to " .. World.rooms[dst_room_id].name
+        .. (dst_fname ~= src_fname and ("/" .. dst_fname) or "") .. "."
 end
 
 local function rm(state, args)

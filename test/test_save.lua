@@ -17,6 +17,7 @@ love = {
 local T     = require("test.runner")
 local Save  = require("save")
 local World = require("world")
+local Cmds  = require("commands.items")
 
 local FILE = "test_save_tmp.txt"
 
@@ -223,4 +224,44 @@ T.test("unedited files do not persist content (rehydrate from registry)", functi
     Save.save_state(s, FILE)
     local stub = Save.load_state(FILE).rooms["home_office"].items["draft_email.txt"]
     T.nil_(stub.content, "unedited file stub should omit content")
+end)
+
+-- -----------------------------------------------------------------------
+T.suite("save / load round-trip — cp copies")
+
+T.test("a copied file survives a save/load round-trip with its content", function()
+    reset()
+    local s = World.new_state()
+    s.current_room = "home_office"
+    s.visited = { foyer = true, home_office = true, cellar = true }
+    local original_content = World.rooms.home_office.items["draft_email.txt"].content
+
+    Cmds.cp(s, {"draft_email.txt", "cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "copy should exist before save")
+
+    Save.save_state(s, FILE)
+    -- Wipe rooms to prove the copy comes back from disk, not lingering state.
+    World.new_state()
+    T.nil_(World.rooms.cellar.items["draft_email.txt"], "copy should be gone after reset")
+
+    World.restore_rooms(Save.load_state(FILE).rooms)
+    local copy = World.rooms.cellar.items["draft_email.txt"]
+    T.ok(copy, "copy should be restored from the save")
+    T.eq(copy.copied, true, "restored copy keeps the copied flag")
+    T.eq(copy.content, original_content, "restored copy rehydrates content from registry")
+end)
+
+T.test("a renamed copy survives a save/load round-trip", function()
+    reset()
+    local s = World.new_state()
+    s.current_room = "home_office"
+    s.visited = { foyer = true, home_office = true }
+
+    Cmds.cp(s, {"draft_email.txt", "backup.txt"})
+    Save.save_state(s, FILE)
+    World.new_state()
+    World.restore_rooms(Save.load_state(FILE).rooms)
+
+    T.ok(World.rooms.home_office.items["backup.txt"], "renamed copy should be restored")
+    T.eq(World.rooms.home_office.items["backup.txt"].filename, "backup.txt")
 end)

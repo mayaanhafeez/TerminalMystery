@@ -3,6 +3,11 @@
 local T = require("test.runner")
 local World = require("world")
 local Items = require("commands.items")
+local Registry = require("items")
+
+local function Items_registry_has(id)
+    return Registry.registry[id] ~= nil
+end
 
 local function make_state(current, visited_list)
     local s = World.new_state()
@@ -116,6 +121,48 @@ T.test("cp fails for unvisited destination", function()
     local s = make_state("home_office", {"home_office"})
     local out = Items.cp(s, {"draft_email.txt", "Cellar"})
     T.ok(out:find("no such visited"), "expected unvisited-room error: " .. out)
+end)
+
+T.test("cp <file> <newname> copies within the current room", function()
+    local s = make_state("home_office", {"home_office"})
+    Items.cp(s, {"draft_email.txt", "draft_copy.txt"})
+    local copy = World.rooms.home_office.items["draft_copy.txt"]
+    T.ok(copy, "renamed copy should exist in current room")
+    T.eq(copy.filename, "draft_copy.txt")
+    T.eq(copy.room, "home_office")
+    T.ok(World.rooms.home_office.items["draft_email.txt"], "original should remain")
+    World.rooms.home_office.items["draft_copy.txt"] = nil
+end)
+
+T.test("cp <file> <room>/<newname> copies into a room under a new name", function()
+    local s = make_state("home_office", {"home_office", "foyer", "cellar"})
+    Items.cp(s, {"draft_email.txt", "cellar/evidence.txt"})
+    local copy = World.rooms.cellar.items["evidence.txt"]
+    T.ok(copy, "renamed copy should be in cellar")
+    T.eq(copy.room, "cellar")
+    World.rooms.cellar.items["evidence.txt"] = nil
+end)
+
+T.test("cp into a room keeps the original filename", function()
+    local s = make_state("home_office", {"home_office", "foyer", "cellar"})
+    Items.cp(s, {"draft_email.txt", "cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "copy should keep its name in cellar")
+    World.rooms.cellar.items["draft_email.txt"] = nil
+end)
+
+T.test("cp onto itself is rejected", function()
+    local s = make_state("home_office", {"home_office"})
+    local out = Items.cp(s, {"draft_email.txt", "draft_email.txt"})
+    T.ok(out:find("same file"), "expected same-file error: " .. out)
+end)
+
+T.test("cp copy carries the registry id so content rehydrates", function()
+    local s = make_state("home_office", {"home_office", "foyer", "cellar"})
+    Items.cp(s, {"draft_email.txt", "cellar"})
+    local copy = World.rooms.cellar.items["draft_email.txt"]
+    T.eq(copy.id, "draft_email", "copy should keep the source registry id")
+    T.ok(Items_registry_has(copy.id), "copy id must be a real registry key for reload")
+    World.rooms.cellar.items["draft_email.txt"] = nil
 end)
 
 -- -----------------------------------------------------------------------
