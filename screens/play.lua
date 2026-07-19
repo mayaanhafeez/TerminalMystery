@@ -191,10 +191,16 @@ function M.load_buttons()
   -- menu label ("Continue From Save") so both screens' boxes are identical.
   local size = get_button_size("Continue From Save")
   love.graphics.setFont(old_font)
-  -- Stack the buttons, horizontally centered, below the title banner.
+  -- Stack the buttons, horizontally centered, below the title banner. The block
+  -- top is pulled up when a short window (e.g. the 800x500 minimum) wouldn't
+  -- otherwise leave room for both buttons above the bottom edge.
   local cw, ch = love.graphics.getDimensions()
   local banner_bottom = Render.title_banner_layout(cw, ch).bottom
-  local play_y = banner_bottom + 64 + size.h / 2
+  local MARGIN = 20
+  local block_h = 2 * size.h + BTN_GAP
+  local block_top = math.min(banner_bottom + 64, ch - block_h - MARGIN)
+  block_top = math.max(banner_bottom + 16, block_top)
+  local play_y = block_top + size.h / 2
   local exit_y = play_y + size.h + BTN_GAP
   M.buttons = {
     {label = "Play", size = size, position = {x=center.x, y=play_y}, action = function() Screen.set("play_menu") end},

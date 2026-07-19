@@ -107,13 +107,28 @@ end
 
 local HEADING = "HOW WILL YOU BEGIN?"
 local HEADING_SCALE = 1.4
+local BTN_GAP = 28 -- vertical gap between stacked buttons
+local HEAD_GAP = 36 -- gap between the heading and the first button
+local MENU_MARGIN = 16 -- min gap kept from the window's top/bottom edges
+local BUTTON_COUNT = 3
+
+-- Uniform button height, derived straight from the heading font (matches
+-- get_button_size without needing the current graphics font to be set).
+local function button_height()
+  local fh = Render.font_big:getHeight()
+  return fh + 2 * (fh * PAD_Y_RATIO)
+end
 
 -- Where the heading sits for a cw×ch window; `bottom` is where the buttons
--- start just beneath it.
+-- start just beneath it. Normally anchored around 0.40*ch, but pulled up when
+-- the whole heading+buttons block would overflow a short window (e.g. the
+-- 800x500 minimum) so nothing gets cut off.
 local function heading_layout(cw, ch)
   local h = Render.font_big:getHeight() * HEADING_SCALE
-  local cy = ch * 0.40
-  return { cy = cy, top = cy - h / 2, bottom = cy + h / 2 }
+  local total = h + HEAD_GAP + BUTTON_COUNT * button_height() + (BUTTON_COUNT - 1) * BTN_GAP
+  local desired_top = ch * 0.40 - h / 2
+  local top = math.max(MENU_MARGIN, math.min(desired_top, ch - total - MENU_MARGIN))
+  return { cy = top + h / 2, top = top, bottom = top + h }
 end
 
 function M.draw()
@@ -202,8 +217,6 @@ function M.keypressed(key)
   end
 end
 
-local BTN_GAP = 28 -- vertical gap between stacked buttons
-
 function M.load_buttons()
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_big)
@@ -219,7 +232,7 @@ function M.load_buttons()
   -- Stack the buttons, horizontally centered, right below the heading.
   local cw, ch = love.graphics.getDimensions()
   local step = size.h + BTN_GAP
-  local continue_y = heading_layout(cw, ch).bottom + 36 + size.h / 2
+  local continue_y = heading_layout(cw, ch).bottom + HEAD_GAP + size.h / 2
   local new_game_y = continue_y + step
   local back_y = new_game_y + step
   M.buttons = {
