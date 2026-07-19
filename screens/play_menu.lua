@@ -34,8 +34,7 @@ local function load_from_save()
 end
 
 local function start_new_game()
-  GameScreen.start_new()
-  Screen.set("game")
+  Screen.set("mode_select")
 end
 
 local function get_button_position(wanted_x, wanted_y, this_button_size)

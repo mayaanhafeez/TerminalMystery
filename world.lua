@@ -910,6 +910,7 @@ function M.new_state()
 		win_time = nil,
 		win_commands = nil,
 		popup_item = nil,
+		terminal_only = false, -- room panel disabled; chosen once at new game
 	}
 end
 

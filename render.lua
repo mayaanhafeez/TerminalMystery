@@ -34,9 +34,25 @@ M.room_y = 0
 M.room_w = 520
 M.room_h = 780
 
+-- When true the room panel is dropped entirely and the terminal takes the whole
+-- window width. Chosen once per game on the mode-select screen and never toggled
+-- afterwards; the game screen sets it before the first resize/rewrap.
+M.terminal_only = false
+
 function M.resize(w, h)
 	M.W = w
 	M.H = h
+	-- Terminal-only mode: no room panel, terminal spans the full width.
+	if M.terminal_only then
+		M.room_w = 0
+		M.room_h = math.max(1, h - M.STATUS_H)
+		M.TERM_W = w
+		M.MAP_X = w
+		M.MAP_W = 0
+		M.room_x = w
+		M.room_y = 0
+		return
+	end
 	local avail_h = math.max(1, h - M.STATUS_H)
 	-- The room ALWAYS fills the full panel height so no letterbox bars ever
 	-- appear around it. It keeps its aspect ratio and the terminal takes the
@@ -1688,22 +1704,27 @@ function M.draw(state, term, best)
 	-- Restore to whatever canvas was active before (usually the screen, but the
 	-- CRT intro captures this whole frame into M.crt_canvas), not forced to nil.
 	local prev_canvas = love.graphics.getCanvas()
-	love.graphics.setCanvas(M.room_canvas)
-	love.graphics.clear()
-	draw_room_view(state)
-	love.graphics.setCanvas(prev_canvas)
+	if not M.terminal_only then
+		love.graphics.setCanvas(M.room_canvas)
+		love.graphics.clear()
+		draw_room_view(state)
+		love.graphics.setCanvas(prev_canvas)
+	end
 
 	-- Now draw at native window resolution.
 	love.graphics.setColor(C.bg)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
 
-	-- Room view, inset to leave room for a pixel-art frame around it.
-	local B = ROOM_BORDER
-	love.graphics.setColor(1, 1, 1)
-	love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0,
-		(M.room_w - 2 * B) / ROOM_VW, (M.room_h - 2 * B) / ROOM_VH)
-	draw_room_border(M.room_x, M.room_y, M.room_w, M.room_h)
+	-- Room view, inset to leave room for a pixel-art frame around it. Skipped
+	-- entirely in terminal-only mode.
+	if not M.terminal_only then
+		local B = ROOM_BORDER
+		love.graphics.setColor(1, 1, 1)
+		love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0,
+			(M.room_w - 2 * B) / ROOM_VW, (M.room_h - 2 * B) / ROOM_VH)
+		draw_room_border(M.room_x, M.room_y, M.room_w, M.room_h)
+	end
 
 	draw_status_bar(state)
 	if state.won then

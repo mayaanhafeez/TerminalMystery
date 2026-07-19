@@ -9,7 +9,8 @@ local save_template = {
   destroyed = true,
   elapsed = true,
   rooms =true,
-  command_count = true
+  command_count = true,
+  terminal_only = true
 }
 
 local function add_world_items(state, filename)

@@ -568,8 +568,11 @@ function M.mousepressed(x, y, button)
 	end
 end
 
-function M.start_new()
+function M.start_new(terminal_only)
 	state = World.new_state()
+	state.terminal_only = terminal_only or false
+	Render.terminal_only = state.terminal_only
+	Render.resize(love.graphics.getDimensions())
 	term = {
 		messages = {},
 		lines = {},
@@ -599,7 +602,11 @@ function M.start_from_save(save_data)
   state.destroyed = save_data.destroyed
   state.elapsed = save_data.elapsed
   state.command_count = save_data.command_count
+  state.terminal_only = save_data.terminal_only or false
   state.start_time = love.timer.getTime() - state.elapsed
+
+  Render.terminal_only = state.terminal_only
+  Render.resize(love.graphics.getDimensions())
 
   World.restore_rooms(save_data.rooms)
 
