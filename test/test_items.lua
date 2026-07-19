@@ -150,6 +150,22 @@ T.test("cp into a room keeps the original filename", function()
     World.rooms.cellar.items["draft_email.txt"] = nil
 end)
 
+T.test("cp rejects an over-long destination name", function()
+    local s = make_state("home_office", {"home_office"})
+    local long = string.rep("a", 25) .. ".txt"
+    local out = Items.cp(s, {"draft_email.txt", long})
+    T.ok(out:find("too long"), "expected 'too long' error: " .. out)
+    T.nil_(World.rooms.home_office.items[long], "over-long copy should not be created")
+end)
+
+T.test("cp allows a name at the length limit", function()
+    local s = make_state("home_office", {"home_office"})
+    local name = string.rep("a", 24) -- exactly MAX_FILENAME_LEN
+    Items.cp(s, {"draft_email.txt", name})
+    T.ok(World.rooms.home_office.items[name], "24-char name should be accepted")
+    World.rooms.home_office.items[name] = nil
+end)
+
 T.test("cp onto itself is rejected", function()
     local s = make_state("home_office", {"home_office"})
     local out = Items.cp(s, {"draft_email.txt", "draft_email.txt"})
@@ -163,6 +179,83 @@ T.test("cp copy carries the registry id so content rehydrates", function()
     T.eq(copy.id, "draft_email", "copy should keep the source registry id")
     T.ok(Items_registry_has(copy.id), "copy id must be a real registry key for reload")
     World.rooms.cellar.items["draft_email.txt"] = nil
+end)
+
+-- -----------------------------------------------------------------------
+T.suite("cp / mv — sprite placement")
+
+-- Mirror render.lua's sprite footprint: two sprite boxes overlap only when
+-- their centers are within the box on BOTH axes (the zone is much shorter than
+-- it is wide, so the vertical footprint is larger).
+local SPRITE_W, SPRITE_H = 0.22, 0.42
+local function overlaps(a, b)
+    return math.abs(a.x - b.x) < SPRITE_W and math.abs(a.y - b.y) < SPRITE_H
+end
+
+T.test("cp within a room places the copy off the source", function()
+    math.randomseed(1)
+    local s = make_state("home_office", {"home_office"})
+    Items.cp(s, {"draft_email.txt", "draft_copy.txt"})
+    local src = World.rooms.home_office.items["draft_email.txt"]
+    local copy = World.rooms.home_office.items["draft_copy.txt"]
+    T.ok(not overlaps(src, copy), "copy sprite must not overlap the source sprite")
+    World.rooms.home_office.items["draft_copy.txt"] = nil
+end)
+
+T.test("cp copy clears every other sprite in the room", function()
+    math.randomseed(2)
+    local s = make_state("foyer", {"foyer"})
+    Items.cp(s, {"guest_list.txt", "guest_copy.txt"})
+    local copy = World.rooms.foyer.items["guest_copy.txt"]
+    for _, item in ipairs(World.get_items_in_room("foyer")) do
+        if item.filename ~= "guest_copy.txt" then
+            T.ok(not overlaps(item, copy), "copy overlaps " .. item.filename)
+        end
+    end
+    World.rooms.foyer.items["guest_copy.txt"] = nil
+end)
+
+T.test("several copies in one room stay non-overlapping", function()
+    -- Check across many seeds: the grid-scan fallback must find a clear spot
+    -- whenever one exists, not just get lucky with random scatter.
+    for seed = 1, 40 do
+        math.randomseed(seed)
+        local s = make_state("home_office", {"home_office"})
+        for i = 1, 3 do
+            Items.cp(s, {"draft_email.txt", "c" .. i .. ".txt"})
+        end
+        local items = World.get_items_in_room("home_office")
+        for i = 1, #items do
+            for j = i + 1, #items do
+                T.ok(not overlaps(items[i], items[j]),
+                    "seed " .. seed .. ": " .. items[i].filename ..
+                    " overlaps " .. items[j].filename)
+            end
+        end
+        for i = 1, 3 do World.rooms.home_office.items["c" .. i .. ".txt"] = nil end
+    end
+end)
+
+T.test("mv into a room re-places the sprite off existing items", function()
+    math.randomseed(3)
+    local s = make_state("sunroom", {"sunroom", "foyer"})
+    Items.mv(s, {"keycard.txt", "foyer"})
+    local moved = World.rooms.foyer.items["keycard.txt"]
+    for _, item in ipairs(World.get_items_in_room("foyer")) do
+        if item.filename ~= "keycard.txt" then
+            T.ok(not overlaps(item, moved), "moved sprite overlaps " .. item.filename)
+        end
+    end
+    move_item_back("keycard.txt", "foyer", "sunroom")
+end)
+
+T.test("find_free_position stays within panel bounds", function()
+    math.randomseed(4)
+    for _ = 1, 20 do
+        local x, y = World.find_free_position("foyer")
+        T.ok(x >= 0.12 and x <= 0.88, "x out of bounds: " .. tostring(x))
+        T.ok(y >= 0.08 and y <= 0.90, "y out of bounds: " .. tostring(y))
+    end
 end)
 
 -- -----------------------------------------------------------------------

@@ -715,6 +715,90 @@ function M.get_item(room_id, filename)
 	return room and room.items[filename]
 end
 
+-- Item positions are normalized (x, y in [0, 1]) within the room's item zone.
+-- render.lua draws that zone at a FIXED virtual size (item_zone_w ~= 444 px,
+-- item_zone_h ~= 277 px) regardless of window size, and each sprite is an 80 px
+-- box with its label ~24 px below. So a sprite's footprint in normalized units
+-- is ~80/444 wide and ~(80+24)/277 tall — note the zone is short, so the
+-- vertical footprint is much larger than the horizontal one. Two sprites
+-- overlap when their centers are within that box on BOTH axes; SPRITE_W/H are
+-- those footprints plus a small margin. Euclidean distance is the wrong model
+-- here (it treats a tall zone as square), which is why the first copy landed on
+-- top of the source.
+local PLACE_MIN_X, PLACE_MAX_X = 0.12, 0.88
+local PLACE_MIN_Y, PLACE_MAX_Y = 0.08, 0.90
+local SPRITE_W = 0.22 -- ~80/444 + margin
+local SPRITE_H = 0.42 -- ~(80+24)/277 + margin
+
+-- Finds a randomized position for an item in a room whose sprite box does not
+-- overlap any other (non-hidden) item's box. Tries random candidates and
+-- returns the first clear one; if the room is too crowded to find one after
+-- many tries, returns the candidate with the largest separation margin so it
+-- overlaps as little as possible. exclude_filename skips a same-named item
+-- (e.g. the source when re-placing). Returns x, y.
+function M.find_free_position(room_id, exclude_filename)
+	local others = {}
+	for _, item in ipairs(M.get_items_in_room(room_id)) do
+		if item.filename ~= exclude_filename and item.x and item.y then
+			table.insert(others, item)
+		end
+	end
+
+	-- Separation score for a candidate: min over all others of how far apart
+	-- the two boxes are as a fraction of the box size on their least-separated
+	-- axis. >= 1 on every neighbor means no box overlaps.
+	local function separation(x, y)
+		local worst = math.huge
+		for _, item in ipairs(others) do
+			local rx = math.abs(x - item.x) / SPRITE_W
+			local ry = math.abs(y - item.y) / SPRITE_H
+			local sep = math.max(rx, ry) -- boxes clear if either axis clears
+			if sep < worst then worst = sep end
+		end
+		return worst
+	end
+
+	local best_x, best_y, best_sep = nil, nil, -1
+	local function consider(x, y)
+		local sep = separation(x, y)
+		if sep > best_sep then
+			best_x, best_y, best_sep = x, y, sep
+		end
+		return sep
+	end
+
+	-- Random scatter first, so placements look natural rather than gridded.
+	for _ = 1, 80 do
+		local x = PLACE_MIN_X + math.random() * (PLACE_MAX_X - PLACE_MIN_X)
+		local y = PLACE_MIN_Y + math.random() * (PLACE_MAX_Y - PLACE_MIN_Y)
+		if consider(x, y) >= 1 then
+			return x, y
+		end
+	end
+
+	-- Random sampling can miss a free spot near capacity, so fall back to a
+	-- deterministic fine-grid scan. Only one item is placed per call (existing
+	-- items are fixed), and every candidate is validated against the full
+	-- footprint, so a fine step never creates an overlap — it just finds tight
+	-- gaps between the room's hand-placed items that a coarse grid would skip.
+	-- This returns a non-overlapping spot whenever one exists at this resolution.
+	local STEP = 0.02
+	local y = PLACE_MIN_Y
+	while y <= PLACE_MAX_Y + 1e-9 do
+		local x = PLACE_MIN_X
+		while x <= PLACE_MAX_X + 1e-9 do
+			if consider(x, y) >= 1 then
+				return x, y
+			end
+			x = x + STEP
+		end
+		y = y + STEP
+	end
+
+	-- Room is genuinely full: return the least-overlapping spot found.
+	return best_x, best_y
+end
+
 -- Resolve a file path like "home_office/draft_email.txt" or plain "draft_email.txt".
 -- Returns room_id, filename on success, or nil, nil, error_string on failure.
 function M.resolve_file_path(current_room_id, path_str)

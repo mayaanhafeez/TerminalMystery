@@ -2,6 +2,11 @@
 
 local World = require("world")
 
+-- Cap the length of a user-chosen filename (via `cp <file> <newname>`). Keeps
+-- labels from overrunning their sprite in the room view; the longest built-in
+-- evidence name is ~21 chars, so this leaves a little headroom.
+local MAX_FILENAME_LEN = 24
+
 local function mv(state, args)
     if #args < 2 then
         return "Usage: mv <source> <destination>  (source may be room/file)"
@@ -28,6 +33,8 @@ local function mv(state, args)
     World.rooms[src_room_id].items[src_fname] = nil
     World.rooms[dst_id].items[src_fname] = item
     item.room = dst_id
+    -- Re-place so the moved sprite doesn't land on an item already in the room.
+    item.x, item.y = World.find_free_position(dst_id, src_fname)
     return "Moved " .. src_fname .. " to " .. World.rooms[dst_id].name .. "."
 end
 
@@ -63,6 +70,10 @@ local function cp(state, args)
         dst_fname   = fname or src_fname
     end
 
+    if #dst_fname > MAX_FILENAME_LEN then
+        return "cp: " .. dst_fname .. ": name too long (max "
+            .. MAX_FILENAME_LEN .. " characters)"
+    end
     if not state.visited[dst_room_id] then
         return "cp: " .. dst_arg .. ": no such visited room"
     end
@@ -81,6 +92,9 @@ local function cp(state, args)
     copy.filename = dst_fname
     copy.room     = dst_room_id
     copy.copied   = true
+    -- Randomize the copy's spot so it doesn't land on top of another sprite
+    -- (the source it was copied from, or anything already in the destination).
+    copy.x, copy.y = World.find_free_position(dst_room_id, dst_fname)
     World.rooms[dst_room_id].items[dst_fname] = copy
 
     if dst_room_id == src_room_id then
