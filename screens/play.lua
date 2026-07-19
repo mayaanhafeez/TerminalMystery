@@ -4,8 +4,8 @@ Save = require("save")
 World = require("world")
 
 local padding = 80
-local PAD_X_RATIO, PAD_Y_RATIO = 0.35, 0.12 -- hitbox padding around the text, proportional to font height
-local HOVER_SCALE = 1.18
+local PAD_X_RATIO, PAD_Y_RATIO = 0.7, 0.36 -- padding around the label inside the button panel, proportional to font height
+local HOVER_SCALE = 1.05
 local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
 
@@ -14,6 +14,13 @@ local TEXT_COLOR = {0xe0/255, 0xde/255, 0xf4/255}
 local TEXT_OUTLINE = {0x39/255, 0x35/255, 0x52/255}
 local HIGHLIGHT_COLOR = {0x3e/255, 0x8f/255, 0xb0/255}
 local BANNER_FILL = {0x9c/255, 0xcf/255, 0xd8/255} -- foam, matches the boot banner
+
+-- Boxed-button palette (Rosé Pine).
+local BTN_FILL = {0x26/255, 0x23/255, 0x3a/255} -- overlay #26233a (idle panel)
+local BTN_BORDER = {0x40/255, 0x3d/255, 0x52/255} -- highlight-med (idle border)
+local BTN_HOVER = {0x9c/255, 0xcf/255, 0xd8/255} -- foam (hover fill + border)
+local BTN_TEXT = {0xe0/255, 0xde/255, 0xf4/255} -- light text (idle)
+local BTN_TEXT_HOVER = {0x19/255, 0x17/255, 0x24/255} -- base, dark text on the foam fill
 
 local M = {}
 local function exit()
@@ -65,12 +72,26 @@ local function print_outlined(text, x, y, fill_color, scale, bold)
   end
 end
 
-local function draw_button(button, color, this_button_size, button_position, scale)
+local function draw_button(button, is_hover, this_button_size, button_position, scale)
   scale = scale or 1
-  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
-  local tx = button_position.x + button.size.pad_x * scale
-  local ty = button_position.y + button.size.pad_y * scale
-  print_outlined(button.label, tx, ty, color, scale)
+  local pos = get_button_position(button_position.x, button_position.y, this_button_size)
+  local w, h = this_button_size.w, this_button_size.h
+  local radius = math.min(w, h) * 0.18
+
+  -- Subtle panel; hover emphasizes with a foam outline + foam label rather than
+  -- a bright solid fill, so it sits quietly over the title art.
+  love.graphics.setColor(BTN_FILL[1], BTN_FILL[2], BTN_FILL[3], is_hover and 0.8 or 0.4)
+  love.graphics.rectangle("fill", pos.x, pos.y, w, h, radius, radius)
+  love.graphics.setLineWidth(is_hover and 2 or 1)
+  love.graphics.setColor(is_hover and BTN_HOVER or BTN_BORDER)
+  love.graphics.rectangle("line", pos.x, pos.y, w, h, radius, radius)
+
+  -- Centered label.
+  local font = love.graphics.getFont()
+  local tw = font:getWidth(button.label) * scale
+  local th = font:getHeight() * scale
+  love.graphics.setColor(is_hover and BTN_HOVER or BTN_TEXT)
+  love.graphics.print(button.label, pos.x + (w - tw) / 2, pos.y + (h - th) / 2, 0, scale, scale)
 end
 
 M.buttons = {}
@@ -96,14 +117,13 @@ function M.draw()
     if (button_selected()) then
       if (button.label == button_selected().label) then
         this_button_size = {w =this_button_size.w * HOVER_SCALE, h =this_button_size.h *HOVER_SCALE}
-        draw_button(button, HIGHLIGHT_COLOR, this_button_size, button.position, HOVER_SCALE)
+        draw_button(button, true, this_button_size, button.position, HOVER_SCALE)
         this_button_size = {w = button.size.w,h= button.size.h}
       else
-
-        draw_button(button, TEXT_COLOR, this_button_size, button.position)
+        draw_button(button, false, this_button_size, button.position)
       end
     else
-      draw_button(button, TEXT_COLOR, this_button_size, button.position)
+      draw_button(button, false, this_button_size, button.position)
     end
   end
   love.graphics.setFont(old_font)
@@ -167,17 +187,18 @@ local BTN_GAP = 28 -- vertical gap between stacked buttons
 function M.load_buttons()
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_big)
-  local play_size = get_button_size("Play")
-  local exit_size = get_button_size("Exit")
+  -- Match the play-menu button size: same font + padding, sized to the widest
+  -- menu label ("Continue From Save") so both screens' boxes are identical.
+  local size = get_button_size("Continue From Save")
   love.graphics.setFont(old_font)
   -- Stack the buttons, horizontally centered, below the title banner.
   local cw, ch = love.graphics.getDimensions()
   local banner_bottom = Render.title_banner_layout(cw, ch).bottom
-  local play_y = banner_bottom + 64 + play_size.h / 2
-  local exit_y = play_y + play_size.h / 2 + BTN_GAP + exit_size.h / 2
+  local play_y = banner_bottom + 64 + size.h / 2
+  local exit_y = play_y + size.h + BTN_GAP
   M.buttons = {
-    {label = "Play", size = play_size, position = {x=center.x, y=play_y}, action = function() Screen.set("play_menu") end},
-    {label = "Exit", size = exit_size, position = {x=center.x, y=exit_y}, action = function() exit() end},
+    {label = "Play", size = size, position = {x=center.x, y=play_y}, action = function() Screen.set("play_menu") end},
+    {label = "Exit", size = size, position = {x=center.x, y=exit_y}, action = function() exit() end},
   }
 end
 

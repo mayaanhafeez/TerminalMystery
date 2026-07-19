@@ -22,7 +22,8 @@ local MIN_TERM_W = 280
 
 M.W = 1280
 M.H = 800
-M.STATUS_H = 28
+M.STATUS_H = 28 -- recomputed from the terminal font height in load_terminal_font
+M.STATUS_PAD_V = 6 -- vertical padding above+below the status text
 M.TERM_W = 760
 M.MAP_X = 760
 M.MAP_W = 520
@@ -372,6 +373,9 @@ local function load_terminal_font()
 	else
 		M.font_term = love.graphics.newFont(size)
 	end
+	-- The status bar holds one line of terminal-font text, so its height must
+	-- track the (scaled) font or the text overflows at high zoom.
+	M.STATUS_H = math.ceil(M.font_term:getHeight() + 2 * M.STATUS_PAD_V)
 end
 
 local function load_fixed_fonts()
@@ -420,6 +424,9 @@ function M.set_font_scale(s)
 	end
 	M.font_scale = clamped
 	load_terminal_font()
+	-- STATUS_H just changed with the font, which shifts the room/terminal split;
+	-- re-run the layout so the panels stay consistent (callers then rewrap).
+	M.resize(M.W, M.H)
 	return true
 end
 
@@ -849,16 +856,21 @@ local function build_layout()
 		return
 	end
 
+	-- Hidden rooms are never drawn on the map, so exclude them from the tree
+	-- entirely — otherwise a hidden child (e.g. .closet under the Den) adds an
+	-- extra depth row that renders as blank space under the visible cells.
 	local children = {}
 	local root_id
 	for id, r in pairs(World.rooms) do
-		children[id] = {}
-		if not r.parent then
-			root_id = id
+		if not r.hidden then
+			children[id] = {}
+			if not r.parent then
+				root_id = id
+			end
 		end
 	end
 	for id, r in pairs(World.rooms) do
-		if r.parent then
+		if not r.hidden and r.parent and children[r.parent] then
 			table.insert(children[r.parent], id)
 		end
 	end
@@ -961,17 +973,15 @@ local function draw_minimap(state, mx, my, mw, mh)
 
 			love.graphics.setFont(M.font_room_small)
 			love.graphics.setColor(text_color)
-			-- Truncate label with "." until it fits the cell width
-			local label = room.name
-			local max_lw = w - 4
-			if M.font_room_small:getWidth(label) > max_lw then
-				while #label > 1 and M.font_room_small:getWidth(label .. ".") > max_lw do
-					label = label:sub(1, -2)
-				end
-				label = label .. "."
-			end
+			-- A short 3-letter code (a leading "The" is dropped first), e.g.
+			-- "The Den" -> DEN, "Server Room" -> SER. `room.code` overrides.
+			-- Scaled down to fit narrow cells so it never truncates.
+			local base = room.name:gsub("^[Tt]he%s+", "")
+			local label = room.code or base:gsub("[^%w]", ""):upper():sub(1, 3)
 			local lw = M.font_room_small:getWidth(label)
-			love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_room_small:getHeight()) / 2)
+			local ls = math.min(1, (w - 4) / math.max(1, lw))
+			love.graphics.print(label, x + (w - lw * ls) / 2,
+				y + (h - M.font_room_small:getHeight() * ls) / 2, 0, ls, ls)
 		end
 	end
 end
@@ -1176,13 +1186,18 @@ local function draw_room_view(state)
 		love.graphics.print(label, lx, ly)
 	end
 
-	-- ---- minimap overlay (bottom-right, 160×120, inset 8 px) ----
-	local MM_W = 160
-	local MM_H = 120
-	local MM_INS = 8
-	local mm_x = px + pw - MM_W - MM_INS
-	local mm_y = py + ph - MM_H - MM_INS
-	draw_minimap(state, mm_x, mm_y, MM_W, MM_H)
+	-- ---- minimap overlay (bottom-right, inset 8 px) ----
+	-- Toggled with Ctrl/Cmd+M. Wide enough that a 3-letter code fits a cell at
+	-- 1:1 (no muddy pixel-font scaling); only 2 rows tall now that hidden rooms
+	-- are excluded, so there's no blank strip under the cells.
+	if not state.minimap_hidden then
+		local MM_W = 224
+		local MM_H = 92
+		local MM_INS = 8
+		local mm_x = px + pw - MM_W - MM_INS
+		local mm_y = py + ph - MM_H - MM_INS
+		draw_minimap(state, mm_x, mm_y, MM_W, MM_H)
+	end
 end
 
 local function format_time(t)
@@ -1199,17 +1214,22 @@ local function draw_status_bar(state)
 	love.graphics.setColor(C.status_text)
 	local y = M.H - M.STATUS_H + (M.STATUS_H - M.font_term:getHeight()) / 2
 	local GAP = 24
+	local avail = M.W - 2 * M.PAD
 
-	local time_str = "time: " .. format_time(state.elapsed)
-	love.graphics.print(time_str, M.PAD, y)
+	-- Left cluster: full labels normally, abbreviated when they'd overflow the
+	-- bar ("time:"->"t:", "commands:"->"c:", and the seconds' fraction dropped).
+	local n = tostring(state.command_count)
+	local t_full = format_time(state.elapsed)
+	local left = "time: " .. t_full .. "   commands: " .. n
+	if M.font_term:getWidth(left) > avail then
+		local t_short = t_full:gsub("%..*$", "") -- drop centiseconds
+		left = "t: " .. t_short .. "  c: " .. n
+	end
+	love.graphics.print(left, M.PAD, y)
 
-	-- place "commands" right after the time string (dynamic, not a fixed offset)
-	local cmds_str = "commands: " .. tostring(state.command_count)
-	local cmds_x = M.PAD + M.font_term:getWidth(time_str) + GAP
-	love.graphics.print(cmds_str, cmds_x, y)
-	local cmds_right = cmds_x + M.font_term:getWidth(cmds_str)
-
-	-- right-aligned hint, degraded then dropped when it would collide with commands
+	-- Right hint, degraded then dropped entirely once it no longer fits in the
+	-- space left over beside the (possibly abbreviated) left cluster.
+	local remaining = avail - M.font_term:getWidth(left) - GAP
 	local hints = {
 		"PgUp/PgDn scroll | Up/Dn history | type `help`",
 		"PgUp/PgDn scroll | type `help`",
@@ -1217,9 +1237,8 @@ local function draw_status_bar(state)
 	}
 	for _, hint in ipairs(hints) do
 		local hw = M.font_term:getWidth(hint)
-		local hx = M.W - M.PAD - hw
-		if hx >= cmds_right + GAP then
-			love.graphics.print(hint, hx, y)
+		if hw <= remaining then
+			love.graphics.print(hint, M.W - M.PAD - hw, y)
 			break
 		end
 	end

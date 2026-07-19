@@ -911,6 +911,7 @@ function M.new_state()
 		win_commands = nil,
 		popup_item = nil,
 		terminal_only = false, -- room panel disabled; chosen once at new game
+		minimap_hidden = false, -- toggled at runtime with Ctrl/Cmd+M
 	}
 end
 

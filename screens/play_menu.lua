@@ -3,8 +3,8 @@ Screen = require("screen")
 Render = require("render")
 
 local padding = 80
-local PAD_X_RATIO, PAD_Y_RATIO = 0.35, 0.12 -- hitbox padding around the text, proportional to font height
-local HOVER_SCALE = 1.18
+local PAD_X_RATIO, PAD_Y_RATIO = 0.7, 0.36 -- padding around the label inside the button panel, proportional to font height
+local HOVER_SCALE = 1.05
 local center= {x = 250, y = 250}
 local screen_size = {w = 500, h = 500}
 local save_data = nil
@@ -15,6 +15,13 @@ local TEXT_OUTLINE = {0x39/255, 0x35/255, 0x52/255}
 local HIGHLIGHT_COLOR = {0x3e/255, 0x8f/255, 0xb0/255}
 local DISABLED_COLOR = {0.5, 0.5, 0.5}
 local BANNER_FILL = {0x9c/255, 0xcf/255, 0xd8/255} -- foam, matches the title screen
+
+-- Boxed-button palette (Rosé Pine).
+local BTN_FILL = {0x26/255, 0x23/255, 0x3a/255} -- overlay #26233a (idle panel)
+local BTN_BORDER = {0x40/255, 0x3d/255, 0x52/255} -- highlight-med (idle border)
+local BTN_HOVER = {0x9c/255, 0xcf/255, 0xd8/255} -- foam (hover fill + border)
+local BTN_TEXT = {0xe0/255, 0xde/255, 0xf4/255} -- light text (idle)
+local BTN_TEXT_HOVER = {0x19/255, 0x17/255, 0x24/255} -- base, dark text on the foam fill
 
 local function get_button_size(label)
   local font = love.graphics.getFont()
@@ -67,13 +74,29 @@ local function print_outlined(text, x, y, fill_color, scale)
   love.graphics.print(text, x, y, 0, scale, scale)
 end
 
-local function draw_button(button, color, this_button_size, button_position, scale)
+local function draw_button(button, is_hover, this_button_size, button_position, scale)
   scale = scale or 1
-  button_position = get_button_position(button_position.x, button_position.y, this_button_size)
-  local tx = button_position.x + button.size.pad_x * scale
-  local ty = button_position.y + button.size.pad_y * scale
+  local pos = get_button_position(button_position.x, button_position.y, this_button_size)
+  local w, h = this_button_size.w, this_button_size.h
+  local radius = math.min(w, h) * 0.18
   local disabled = save_data == nil and button.label == "Continue From Save"
-  print_outlined(button.label, tx, ty, disabled and DISABLED_COLOR or color, scale)
+  local hot = is_hover and not disabled
+
+  -- Subtle panel; hover emphasizes with a foam outline + foam label rather than
+  -- a bright solid fill, so it sits quietly over the title art.
+  love.graphics.setColor(BTN_FILL[1], BTN_FILL[2], BTN_FILL[3], hot and 0.8 or 0.4)
+  love.graphics.rectangle("fill", pos.x, pos.y, w, h, radius, radius)
+  love.graphics.setLineWidth(hot and 2 or 1)
+  love.graphics.setColor(hot and BTN_HOVER or BTN_BORDER)
+  love.graphics.rectangle("line", pos.x, pos.y, w, h, radius, radius)
+
+  -- Centered label.
+  local font = love.graphics.getFont()
+  local tw = font:getWidth(button.label) * scale
+  local th = font:getHeight() * scale
+  local tc = disabled and DISABLED_COLOR or (hot and BTN_HOVER or BTN_TEXT)
+  love.graphics.setColor(tc)
+  love.graphics.print(button.label, pos.x + (w - tw) / 2, pos.y + (h - th) / 2, 0, scale, scale)
 end
 
 M.buttons = {}
@@ -117,13 +140,13 @@ function M.draw()
     if (button_selected()) then
       if (button.label == button_selected().label) then
         this_button_size = {w =this_button_size.w * HOVER_SCALE, h =this_button_size.h *HOVER_SCALE}
-        draw_button(button, HIGHLIGHT_COLOR, this_button_size, button.position, HOVER_SCALE)
+        draw_button(button, true, this_button_size, button.position, HOVER_SCALE)
         this_button_size = {w = button.size.w,h= button.size.h}
       else
-        draw_button(button, TEXT_COLOR, this_button_size, button.position)
+        draw_button(button, false, this_button_size, button.position)
       end
     else
-      draw_button(button, TEXT_COLOR, this_button_size, button.position)
+      draw_button(button, false, this_button_size, button.position)
     end
   end
   love.graphics.setFont(old_font)
@@ -184,20 +207,25 @@ local BTN_GAP = 28 -- vertical gap between stacked buttons
 function M.load_buttons()
   local old_font = love.graphics.getFont()
   love.graphics.setFont(Render.font_big)
-  local continue_size = get_button_size("Continue From Save")
-  local new_game_size = get_button_size("New Game")
-  local back_size = get_button_size("Back")
+  -- One uniform button size for every row: width of the widest label + padding.
+  local labels = { "Continue From Save", "New Game", "Back" }
+  local size = { w = 0, h = 0, pad_x = 0, pad_y = 0 }
+  for _, l in ipairs(labels) do
+    local s = get_button_size(l)
+    size.w = math.max(size.w, s.w)
+    size.h, size.pad_x, size.pad_y = s.h, s.pad_x, s.pad_y
+  end
   love.graphics.setFont(old_font)
   -- Stack the buttons, horizontally centered, right below the heading.
   local cw, ch = love.graphics.getDimensions()
-  local start_y = heading_layout(cw, ch).bottom + 36
-  local continue_y = start_y + continue_size.h / 2
-  local new_game_y = continue_y + continue_size.h / 2 + BTN_GAP + new_game_size.h / 2
-  local back_y = new_game_y + new_game_size.h / 2 + BTN_GAP + back_size.h / 2
+  local step = size.h + BTN_GAP
+  local continue_y = heading_layout(cw, ch).bottom + 36 + size.h / 2
+  local new_game_y = continue_y + step
+  local back_y = new_game_y + step
   M.buttons = {
-    {label = "Continue From Save", size = continue_size, position = {x=center.x, y=continue_y}, action = function() load_from_save() end},
-    {label = "New Game", size = new_game_size, position = {x=center.x, y=new_game_y}, action = function() start_new_game() end},
-    {label = "Back", size = back_size, position = {x=center.x, y=back_y}, action = function() Screen.set("play") end},
+    {label = "Continue From Save", size = size, position = {x=center.x, y=continue_y}, action = function() load_from_save() end},
+    {label = "New Game", size = size, position = {x=center.x, y=new_game_y}, action = function() start_new_game() end},
+    {label = "Back", size = size, position = {x=center.x, y=back_y}, action = function() Screen.set("play") end},
   }
 end
 

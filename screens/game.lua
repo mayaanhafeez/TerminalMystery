@@ -541,6 +541,9 @@ function M.keypressed(key)
 		if Render.set_font_scale(1) then
 			rewrap_terminal()
 		end
+	elseif key == "m" and ctrl_or_cmd_down() then
+		state.minimap_hidden = not state.minimap_hidden
+		push_text(state.minimap_hidden and "minimap hidden" or "minimap shown", "system")
 	end
 end
 
