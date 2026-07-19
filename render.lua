@@ -73,13 +73,14 @@ end
 
 -- Palette
 local C = {
-	bg = { 0.05, 0.06, 0.09 },
-	term_bg = { 0.02, 0.03, 0.04 },
-	term_text = { 0.55, 0.95, 0.55 },
-	term_dim = { 0.30, 0.55, 0.30 },
-	term_user = { 0.85, 0.95, 0.85 },
-	prompt = { 0.95, 0.75, 0.25 },
-	system = { 0.95, 0.80, 0.40 },
+	-- Terminal palette matches the boot + mode-select screens (Rosé Pine).
+	bg = { 0.098, 0.090, 0.141 }, -- base #191724
+	term_bg = { 0.098, 0.090, 0.141 }, -- base #191724
+	term_text = { 0.50, 0.60, 0.88 }, -- soft blue (output)
+	term_dim = { 0.36, 0.42, 0.62 }, -- dim blue (completions)
+	term_user = { 0.76, 0.82, 1.00 }, -- light blue-white (typed input)
+	prompt = { 0.42, 0.50, 0.78 }, -- muted blue
+	system = { 0.612, 0.812, 0.847 }, -- foam accent (system lines)
 	map_bg = { 0.10, 0.12, 0.16 },
 	map_border = { 0.16, 0.18, 0.22 },
 	room_unvisited = { 0.18, 0.20, 0.24 },
@@ -88,8 +89,8 @@ local C = {
 	room_text_dim = { 0.40, 0.42, 0.48 },
 	room_text = { 0.88, 0.88, 0.92 },
 	room_text_curr = { 0.10, 0.10, 0.10 },
-	status_bg = { 0.12, 0.14, 0.18 },
-	status_text = { 0.80, 0.80, 0.85 },
+	status_bg = { 0.122, 0.114, 0.180 }, -- surface #1f1d2e
+	status_text = { 0.68, 0.70, 0.82 }, -- subtle blue-grey
 	connection = { 0.42, 0.45, 0.55 },
 	win_overlay = { 0, 0, 0, 0.88 },
 	win_title = { 0.95, 0.85, 0.45 },
@@ -108,10 +109,13 @@ local LINE_COLOURS = {
 	completion = C.term_dim,
 }
 
-M.font = nil -- room view, popup, win screen (fixed size)
+M.font = nil -- popup + win screen (terminal font, fixed size)
 M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
-M.font_big = nil
-M.font_small = nil -- used for minimap labels
+M.font_big = nil -- headings / menu / title buttons (terminal font)
+M.font_small = nil -- terminal font, small
+M.font_room = nil -- room view item labels (pixel/Minecraft font)
+M.font_room_big = nil -- room view name banner (pixel font)
+M.font_room_small = nil -- room view minimap labels (pixel font)
 M.font_mono = nil -- computer-log font (laptop/chat popups); loaded from font_mono.ttf
 M.font_mono_big = nil -- larger monospace for the boot screen / ASCII banner
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
@@ -356,40 +360,51 @@ local function pixel_font_path()
 	return nil
 end
 
+-- The terminal panel font is the clean monospace (JetBrains Mono), matching the
+-- boot and mode-select screens. Falls back to the pixel font, then LÖVE default.
 local function load_terminal_font()
-	local path = pixel_font_path()
-	local size = math.max(6, math.floor((path and 16 or 14) * M.font_scale + 0.5))
-	if path then
-		M.font_term = love.graphics.newFont(path, size)
-		M.font_term:setFilter("nearest", "nearest") -- crisp pixel font
+	local size = math.max(6, math.floor(16 * M.font_scale + 0.5))
+	if love.filesystem.getInfo("font_mono.ttf") then
+		M.font_term = love.graphics.newFont("font_mono.ttf", size)
+	elseif pixel_font_path() then
+		M.font_term = love.graphics.newFont(pixel_font_path(), size)
+		M.font_term:setFilter("nearest", "nearest")
 	else
 		M.font_term = love.graphics.newFont(size)
 	end
 end
 
 local function load_fixed_fonts()
-	-- Default: a pixel (Minecraft-style) font for the whole UI.
+	-- The pixel (Minecraft-style) font is now used ONLY in the room view: its
+	-- name banner, item labels, and minimap cell labels.
 	local path = pixel_font_path()
 	if path then
-		M.font = love.graphics.newFont(path, 16)
-		M.font_big = love.graphics.newFont(path, 30)
-		M.font_small = love.graphics.newFont(path, 12)
-		for _, f in ipairs({ M.font, M.font_big, M.font_small }) do
+		M.font_room = love.graphics.newFont(path, 16)
+		M.font_room_big = love.graphics.newFont(path, 30)
+		M.font_room_small = love.graphics.newFont(path, 12)
+		for _, f in ipairs({ M.font_room, M.font_room_big, M.font_room_small }) do
 			f:setFilter("nearest", "nearest")
 		end
 	else
-		M.font = love.graphics.newFont(14)
-		M.font_big = love.graphics.newFont(26)
-		M.font_small = love.graphics.newFont(10)
+		M.font_room = love.graphics.newFont(14)
+		M.font_room_big = love.graphics.newFont(26)
+		M.font_room_small = love.graphics.newFont(10)
 	end
-	-- "Computer logs and stuff" (laptop / chat popups): a clean monospace, kept
-	-- distinct from the pixel default and the handwriting note font.
+	-- Everything else in the UI (terminal, status bar, win screen, popups, title
+	-- and menu screens) uses the clean monospace terminal font — the same one the
+	-- boot and mode-select screens use.
 	if love.filesystem.getInfo("font_mono.ttf") then
 		M.font_mono = love.graphics.newFont("font_mono.ttf", 15)
 		M.font_mono_big = love.graphics.newFont("font_mono.ttf", 22)
+		M.font = love.graphics.newFont("font_mono.ttf", 16)
+		M.font_big = love.graphics.newFont("font_mono.ttf", 30)
+		M.font_small = love.graphics.newFont("font_mono.ttf", 12)
 	else
+		M.font = M.font_room
+		M.font_big = M.font_room_big
+		M.font_small = M.font_room_small
 		M.font_mono = M.font
-		M.font_mono_big = M.font_big or M.font
+		M.font_mono_big = M.font_big
 	end
 	-- Handwritten evidence (scroll popups).
 	if love.filesystem.getInfo("handwriting.ttf") then
@@ -944,19 +959,19 @@ local function draw_minimap(state, mx, my, mw, mh)
 			love.graphics.setLineWidth(1)
 			love.graphics.rectangle("line", x, y, w, h, 3, 3)
 
-			love.graphics.setFont(M.font_small)
+			love.graphics.setFont(M.font_room_small)
 			love.graphics.setColor(text_color)
 			-- Truncate label with "." until it fits the cell width
 			local label = room.name
 			local max_lw = w - 4
-			if M.font_small:getWidth(label) > max_lw then
-				while #label > 1 and M.font_small:getWidth(label .. ".") > max_lw do
+			if M.font_room_small:getWidth(label) > max_lw then
+				while #label > 1 and M.font_room_small:getWidth(label .. ".") > max_lw do
 					label = label:sub(1, -2)
 				end
 				label = label .. "."
 			end
-			local lw = M.font_small:getWidth(label)
-			love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_small:getHeight()) / 2)
+			local lw = M.font_room_small:getWidth(label)
+			love.graphics.print(label, x + (w - lw) / 2, y + (h - M.font_room_small:getHeight()) / 2)
 		end
 	end
 end
@@ -1074,7 +1089,7 @@ local function draw_room_view(state)
 
   end
     -- ---- back-wall furniture ----
-    local BANNER_H = M.font_big:getHeight() + M.PAD
+    local BANNER_H = M.font_room_big:getHeight() + M.PAD
     local fur_y = fy + BANNER_H + 6
     local furn = room_def.furniture
     if furn then
@@ -1109,11 +1124,11 @@ local function draw_room_view(state)
 	love.graphics.setLineWidth(1)
 	love.graphics.line(px + 8, py + BANNER_H, px + pw - 8, py + BANNER_H)
 
-	love.graphics.setFont(M.font_big)
+	love.graphics.setFont(M.font_room_big)
 	love.graphics.setColor(C.status_text)
 	local rname = room_def.name
-	local rnw = M.font_big:getWidth(rname)
-	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_big:getHeight()) / 2)
+	local rnw = M.font_room_big:getWidth(rname)
+	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_room_big:getHeight()) / 2)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
@@ -1126,7 +1141,7 @@ local function draw_room_view(state)
 	local item_zone_w = ITEM_RIGHT - ITEM_LEFT
 	local item_zone_h = math.max(1, ITEM_BOTTOM - ITEM_TOP)
 
-	love.graphics.setFont(M.font)
+	love.graphics.setFont(M.font_room)
 	local items = World.get_items_in_room(room_id)
 	for _, item in ipairs(items) do
 		local cx = ITEM_LEFT + item.x * item_zone_w
@@ -1152,7 +1167,7 @@ local function draw_room_view(state)
 		end
 
 		local label = item.filename:gsub("%.%w+$", "")
-		local lw = M.font:getWidth(label)
+		local lw = M.font_room:getWidth(label)
 		local lx = cx - lw / 2
 		local ly = iy + ITEM_PX + 4
 		love.graphics.setColor(0, 0, 0, 0.65)
