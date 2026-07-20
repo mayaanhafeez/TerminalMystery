@@ -141,6 +141,7 @@ A terminal window shows a list of recently-cloned repos.]],
 			{ ref = "repo_log", x = 0.70, y = 0.35 },
 			{ ref = "cipher_note", x = 0.55, y = 0.72 },
 			{ ref = "slack_eng_help", x = 0.20, y = 0.30 },
+			{ ref = "slack_trent_dm", x = 0.82, y = 0.68 },
 		},
     tiles = {
       legend = {
@@ -571,7 +572,7 @@ A printout is pinned to the side of the cabinet.]],
 		parent = "foyer",
 		name = "server_room",
 		mode = "000",
-		lock_code = "foxglove",
+		lock_code = "765",
 		description = [[The Server Room.
 
 The house's real infrastructure lives here: two racks, blinking

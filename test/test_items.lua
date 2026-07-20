@@ -329,14 +329,15 @@ end)
 
 T.test("correct code unlocks the room", function()
     local s = make_state("foyer")
-    Items.chmod(s, {"foxglove", "server_room"})
-    T.eq(World.rooms.server_room.mode, "foxglove")
+    Items.chmod(s, {"765", "server_room"})
+    T.eq(World.rooms.server_room.mode, "765")
 end)
 
-T.test("correct code is case-insensitive", function()
+T.test("a different valid octal is still rejected", function()
     local s = make_state("foyer")
-    Items.chmod(s, {"FOXGLOVE", "server_room"})
-    T.eq(World.rooms.server_room.mode, "FOXGLOVE")
+    local out = Items.chmod(s, {"766", "server_room"})
+    T.eq(World.rooms.server_room.mode, "000")
+    T.ok(out:find("incorrect"), "expected incorrect-code error: " .. out)
 end)
 
 -- -----------------------------------------------------------------------

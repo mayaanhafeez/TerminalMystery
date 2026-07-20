@@ -93,8 +93,35 @@ local function grep(state, args)
 	local needle = pattern:lower()
 	local results = {}
 
+	-- Regex-style line anchors: a leading ^ ties the match to the start of the
+	-- line, a trailing $ to the end. Everything between stays a literal substring
+	-- (no other regex metachars). A $ or ^ anywhere else is matched literally.
+	local anchor_start, anchor_end = false, false
+	if needle:sub(1, 1) == "^" then
+		anchor_start = true
+		needle = needle:sub(2)
+	end
+	if needle ~= "" and needle:sub(-1) == "$" then
+		anchor_end = true
+		needle = needle:sub(1, -2)
+	end
+
+	local function raw_hit(line)
+		local l = line:lower()
+		if needle == "" then
+			return true -- a bare ^ or $ matches every line, like real grep
+		elseif anchor_start and anchor_end then
+			return l == needle
+		elseif anchor_start then
+			return l:sub(1, #needle) == needle
+		elseif anchor_end then
+			return #l >= #needle and l:sub(-#needle) == needle
+		end
+		return l:find(needle, 1, true) ~= nil
+	end
+
 	local function match(line)
-		local hit = line:lower():find(needle, 1, true) ~= nil
+		local hit = raw_hit(line)
 		return flags.v and not hit or (not flags.v and hit)
 	end
 

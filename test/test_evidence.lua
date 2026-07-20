@@ -68,3 +68,35 @@ T.test("chmod +w then sed -i rewrites content; cat sees the new text", function(
         "cat should show the restored dlin handle: " .. shown)
     T.ok(not shown:find("svc-agent", 1, true), "svc-agent should be fully replaced")
 end)
+
+-- -----------------------------------------------------------------------
+T.suite("grep — line anchors (^ / $)")
+
+T.test("^ anchors to the start of a line", function()
+    local s = make_state("server_room")
+    local out = Evidence.grep(s, {"^10:04", "audit_stream.log"})
+    T.ok(out:find("10:04:07", 1, true), "expected the 10:04 line: " .. out)
+    T.ok(not out:find("10:01:22", 1, true), "should not match other timestamps")
+end)
+
+T.test("$ anchors to the end of a line", function()
+    local s = make_state("server_room")
+    local out = Evidence.grep(s, {"home_office$", "audit_stream.log"})
+    T.ok(out:find("10:01:22", 1, true), "expected first home_office line")
+    T.ok(out:find("10:15:48", 1, true), "expected second home_office line")
+    T.ok(not out:find("scan  cellar", 1, true), "cellar line should not match")
+end)
+
+T.test("^...$ matches a whole line exactly", function()
+    local s = make_state("server_room")
+    local hit = Evidence.grep(s, {"^10:04:07  svc-agent  scan  den$", "audit_stream.log"})
+    T.ok(hit:find("scan  den", 1, true), "expected the exact line: " .. hit)
+    local miss = Evidence.grep(s, {"^svc-agent$", "audit_stream.log"})
+    T.eq(miss, "(no matches)")
+end)
+
+T.test("a $ that isn't trailing is matched literally", function()
+    local s = make_state("server_room")
+    local out = Evidence.grep(s, {"$310", "billing_audit.txt"})
+    T.ok(out:find("310,000", 1, true), "expected the $310K line: " .. out)
+end)

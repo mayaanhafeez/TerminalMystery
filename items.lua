@@ -160,6 +160,22 @@ priya  9:38 PM
   you'll live]],
 	},
 
+	slack_trent_dm = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "DM: trent kessler",
+		content = [[trent  10:33 PM
+  grab the signed Meridian paperwork off the server-room box? need it
+  for the board packet
+trent  10:34 PM
+  keypad's the vault word FOXGLOVE (Dan's pick, naturally). usual way:
+  a=1 to z=26, then each letter mod 8. three digits — the repeated
+  letter, then the ^ letter, then the $ one. that last digit, keep it
+  if it's odd, otherwise minus one.
+trent  10:35 PM
+  don't paste the actual number in here]],
+	},
+
 	-- ---------------- The Den ----------------
 
 	victim = {
@@ -309,7 +325,10 @@ wei  9:45 PM
 leo  9:46 PM
   and if i just want the filenames, not all the lines
 wei  9:46 PM
-  grep -rl <name>. a handle turns up in more places than you'd think]],
+  grep -rl <name>. a handle turns up in more places than you'd think
+wei  9:47 PM
+  also ^ anchors the start of a line, $ the end — ^foo matches lines
+  starting with foo, foo$ ones ending with it]],
 	},
 
 	-- ---------------- Server Room (chmod-locked) ----------------

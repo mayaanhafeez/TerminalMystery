@@ -64,7 +64,7 @@ end)
 
 T.test("gating fields propagate from raw to rooms", function()
     T.eq(World.rooms.server_room.mode, "000")
-    T.eq(World.rooms.server_room.lock_code, "foxglove")
+    T.eq(World.rooms.server_room.lock_code, "765")
     T.eq(World.rooms.cellar.requires, "keycard.txt")
 end)
 
