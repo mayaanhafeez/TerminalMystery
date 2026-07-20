@@ -135,6 +135,23 @@ RESPONSE_SCHEMA = {
     "required": ["command"],
 }
 
+# A truncated reply in a long game (dozens of turns of accumulated history)
+# tends to keep truncating on retry — the same context-length pressure that
+# broke it the first time is still there. REPAIR_* is for a completely
+# separate, stateless call: no conversation history, no game context, just
+# "here's some broken text, what command was it trying to send" — small
+# prompt, nothing to truncate, so it's far more likely to just produce clean
+# JSON on the first try.
+REPAIR_SYSTEM_PROMPT = (
+    "Below is broken text that was trying to specify a command. "
+    "Extract that command and put it in the required output format."
+)
+REPAIR_SCHEMA = {
+    "type": "object",
+    "properties": {"command": {"type": "string"}},
+    "required": ["command"],
+}
+
 # Recovers a `"command": "..."` value via regex even when the surrounding JSON
 # is truncated/invalid — the safety net for a reply that got cut off partway
 # through "reason" (which now comes after "command", but a very short
@@ -233,11 +250,11 @@ def coverage_complete(turn):
             and turn["files_read"] >= turn["files_total"])
 
 
-def call_ollama(host, model, messages, timeout=120, use_schema=True):
+def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None, num_predict=768):
     body_obj = {"model": model, "messages": messages, "stream": False,
-                "options": {"num_predict": 768}}
+                "options": {"num_predict": num_predict}}
     if use_schema:
-        body_obj["format"] = RESPONSE_SCHEMA
+        body_obj["format"] = schema or RESPONSE_SCHEMA
     body = json.dumps(body_obj).encode("utf-8")
     req = urllib.request.Request(
         f"{host}/api/chat", data=body,
@@ -246,6 +263,43 @@ def call_ollama(host, model, messages, timeout=120, use_schema=True):
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         data = json.loads(resp.read().decode("utf-8"))
     return data["message"]["content"]
+
+
+def repair_command(host, model, broken_reply, timeout=30):
+    """Stateless, zero-history call whose only job is recovering the command a
+    broken reply was trying to send. Unlike a same-context retry, this isn't
+    subject to whatever accumulated-history context pressure likely caused the
+    original truncation — small system prompt, one user message, nothing else.
+    Returns a cleaned command string, or None if nothing usable was recovered
+    (including on any network/HTTP failure — this is a best-effort last resort,
+    never something whose failure should abort the run)."""
+    messages = [
+        {"role": "system", "content": REPAIR_SYSTEM_PROMPT},
+        {"role": "user", "content": f"Broken output to repair:\n\n{broken_reply}"},
+    ]
+    try:
+        reply = call_ollama(host, model, messages, timeout=timeout,
+                             use_schema=True, schema=REPAIR_SCHEMA, num_predict=64)
+    except urllib.error.HTTPError:
+        try:
+            reply = call_ollama(host, model, messages, timeout=timeout, use_schema=False, num_predict=64)
+        except (urllib.error.URLError, TimeoutError):
+            return None
+    except (urllib.error.URLError, TimeoutError):
+        return None
+
+    command = None
+    try:
+        data = json.loads(reply.strip())
+        if isinstance(data, dict) and data.get("command"):
+            command = str(data["command"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+    if command is None:
+        _, command = try_partial_json(reply)
+    if not command:
+        return None
+    return clean_command_token(command) or None
 
 
 def clean_command_token(text):
@@ -322,7 +376,7 @@ def parse_reply(reply):
     return reason, command, ok
 
 
-def run_once(model, host, seed, max_turns, verbose, full_explore=False):
+def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_model=None):
     args = ["lua", SERVE_SCRIPT]
     if seed is not None:
         args += ["--seed", str(seed)]
@@ -344,7 +398,7 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False):
               "final_room": turn["room"], "stalled": False, "status": turn["status"],
               "rooms_visited": turn["rooms_visited"], "rooms_total": turn["rooms_total"],
               "files_read": turn["files_read"], "files_total": turn["files_total"],
-              "parse_failures": 0}
+              "parse_failures": 0, "repairs": 0}
 
     if turn["status"] != "OK":
         proc.wait(timeout=5)
@@ -383,14 +437,25 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False):
             result["error"] = str(e)
             break
 
-        print(f"  [{i}] {command}" + ("" if ok else "  [unparseable after retries — not sent]"))
+        repaired = False
+        if not ok:
+            # Same-context retries exhausted. A long game means a lot of
+            # accumulated history, which is likely what caused the truncation
+            # in the first place — retrying in that same context tends to
+            # truncate again. Try one stateless, history-free call instead.
+            fixed = repair_command(host, repair_model or model, reply)
+            if fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS:
+                command, reason, ok, repaired = fixed, "(repaired from a malformed reply)", True, True
+                result["repairs"] += 1
+
+        print(f"  [{i}] {command}" + ("  [repaired]" if repaired else "" if ok else "  [unparseable — not sent]"))
         print(f"       reason: {reason}")
 
         if not ok:
-            # Every retry produced something that isn't a real command
-            # (rambling, truncation, wrong format). Forwarding it would just
-            # burn a turn on "you mutter ... under your breath" — skip the
-            # game entirely and let the model try again next turn.
+            # Every retry (and the repair attempt) produced something that
+            # isn't a real command. Forwarding it would just burn a turn on
+            # "you mutter ... under your breath" — skip the game entirely and
+            # let the model try again next turn.
             transcript.append({"turn": i, "game_output": None, "reason": reason,
                                 "command": command, "blocked": False, "parse_failed": True})
             result["turns"] = i
@@ -402,10 +467,15 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False):
             continue
         consecutive_parse_failures = 0
 
-        # Feed the model's own (raw) reply back as its turn in the
-        # conversation, not just the bare command — keeps it consistent about
-        # the expected format across turns.
-        messages.append({"role": "assistant", "content": reply.strip()})
+        # Feed back this turn's "decision" as the assistant's own history. For
+        # a normal reply that's the model's raw output; for a repaired one,
+        # the original broken text never goes into history at all (same
+        # no-trace-of-failure principle as a plain retry) — a clean synthetic
+        # message stands in for it instead.
+        if repaired:
+            messages.append({"role": "assistant", "content": json.dumps({"command": command, "reason": reason})})
+        else:
+            messages.append({"role": "assistant", "content": reply.strip()})
 
         blocked = full_explore and command.strip().lower().startswith("accuse") and not coverage_complete(turn)
         try:
@@ -495,6 +565,9 @@ def main():
     ap.add_argument("--full-explore", action="store_true",
                      help="force a completionist run: block `accuse` until every room and "
                           "file has been covered (default: model can accuse whenever it wants)")
+    ap.add_argument("--repair-model", default=None,
+                     help="model used for the stateless format-repair call after a reply "
+                          "fails to parse (default: same as --model)")
     args = ap.parse_args()
 
     os.makedirs(args.log_dir, exist_ok=True)
@@ -504,7 +577,7 @@ def main():
         run_seed = (args.seed + run_i) if args.seed is not None else None
         print(f"Run {run_i}/{args.runs} (model={args.model}, seed={run_seed}) ...")
         result, transcript = run_once(args.model, args.host, run_seed, args.max_turns, args.verbose,
-                                       full_explore=args.full_explore)
+                                       full_explore=args.full_explore, repair_model=args.repair_model)
         summaries.append(result)
 
         log_path = os.path.join(args.log_dir, f"run_{run_i}_{int(time.time())}.json")
@@ -517,6 +590,8 @@ def main():
               f"room={result['final_room']}, "
               f"rooms={result['rooms_visited']}/{result['rooms_total']} "
               f"files={result['files_read']}/{result['files_total']}  [log: {log_path}]")
+        if result.get("repairs"):
+            print(f"     {result['repairs']} turn(s) recovered by the stateless format-repair call")
         if result.get("parse_failures"):
             print(f"     {result['parse_failures']} turn(s) had no usable command even after retries")
         if result.get("error"):
