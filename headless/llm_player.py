@@ -112,9 +112,10 @@ and you'll be shown what's missing instead — so keep exploring until \
 
 NO_REASON_ADDENDUM = """
 
-For every command EXCEPT `accuse`, leave out "reason" entirely — reply with \
-ONLY {"command": "..."}. The one exception is `accuse`: that reply must \
-still include "reason", explaining the evidence behind your accusation.
+For every command, respond with ONLY {"command": "..."} — there is no \
+"reason" field and it will not be accepted. If you decide to `accuse`, you \
+will separately be asked, in one more exchange right after, why — answer \
+that one clearly and specifically when it comes.
 """
 
 STALL_WINDOW = 8  # identical trailing commands within this window => stalled
@@ -147,6 +148,30 @@ RESPONSE_SCHEMA = {
         "reason": {"type": "string", "maxLength": 200},
     },
     "required": ["command"],
+}
+
+# --no-reason's schema: "additionalProperties": False structurally forbids a
+# "reason" key at all (not just "not required" — a chatty model will fill in
+# an optional field anyway, which is exactly what kept happening when
+# RESPONSE_SCHEMA was reused with a prose-only "please omit reason"
+# instruction). Used for every turn in --no-reason mode, since the schema is
+# fixed before the model picks a command — there's no way to know in advance
+# that *this* turn will be the `accuse`, so accuse's reason is fetched
+# separately afterward (see get_accuse_reason) rather than folded in here.
+NO_REASON_SCHEMA = {
+    "type": "object",
+    "properties": {"command": {"type": "string"}},
+    "required": ["command"],
+    "additionalProperties": False,
+}
+
+# The dedicated follow-up call --no-reason makes only when the model has just
+# committed to `accuse` — asked with the real conversation history (unlike
+# the stateless repair call) so it can actually justify the accusation.
+REASON_ONLY_SCHEMA = {
+    "type": "object",
+    "properties": {"reason": {"type": "string", "maxLength": 300}},
+    "required": ["reason"],
 }
 
 # A truncated reply in a long game (dozens of turns of accumulated history)
@@ -267,16 +292,8 @@ def coverage_complete(turn):
 _NO_REASON_PLACEHOLDERS = {"", "(no reason given)", "(repaired from a malformed reply)"}
 
 
-def accuse_needs_reason(command, reason, no_reason_mode):
-    """True if this is an `accuse` in --no-reason mode with no real reason —
-    the one command that mode still requires a reason for. Used to reject an
-    otherwise-"ok" parse and force a retry, rather than let the game's most
-    consequential command through unjustified."""
-    if not no_reason_mode or not command:
-        return False
-    if command.strip().lower().split(None, 1)[0] != "accuse":
-        return False
-    return not reason or reason.strip() in _NO_REASON_PLACEHOLDERS
+def is_accuse(command):
+    return bool(command) and command.strip().lower().split(None, 1)[0] == "accuse"
 
 
 def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None, num_predict=768):
@@ -329,6 +346,39 @@ def repair_command(host, model, broken_reply, timeout=30):
     if not command:
         return None
     return clean_command_token(command) or None
+
+
+def get_accuse_reason(host, model, messages, command, timeout=60):
+    """--no-reason's schema structurally forbids a "reason" field on every
+    turn (see NO_REASON_SCHEMA), including the turn where the model decides
+    to `accuse` — so once that happens, this asks for the justification in a
+    dedicated follow-up call instead, WITH the real conversation history
+    (unlike repair_command), since a real justification needs the context.
+    Returns a reason string, or None if nothing usable came back (a network
+    failure here shouldn't block the accusation — see the caller)."""
+    followup = messages + [
+        {"role": "assistant", "content": json.dumps({"command": command})},
+        {"role": "user", "content": "In one sentence, why are you accusing this person?"},
+    ]
+    try:
+        reply = call_ollama(host, model, followup, timeout=timeout,
+                             use_schema=True, schema=REASON_ONLY_SCHEMA, num_predict=200)
+    except urllib.error.HTTPError:
+        try:
+            reply = call_ollama(host, model, followup, timeout=timeout, use_schema=False, num_predict=200)
+        except (urllib.error.URLError, TimeoutError):
+            return None
+    except (urllib.error.URLError, TimeoutError):
+        return None
+
+    try:
+        data = json.loads(reply.strip())
+        if isinstance(data, dict) and data.get("reason"):
+            return str(data["reason"]).strip()
+    except (json.JSONDecodeError, TypeError):
+        pass
+    m = _REASON_RE.search(reply)
+    return _json_unescape(m.group(1)).strip() if m else None
 
 
 def clean_command_token(text):
@@ -438,11 +488,13 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
 
     schema_supported = True
 
+    active_schema = NO_REASON_SCHEMA if no_reason else RESPONSE_SCHEMA
+
     def ask_model():
         nonlocal schema_supported
         if schema_supported:
             try:
-                return call_ollama(host, model, messages, use_schema=True)
+                return call_ollama(host, model, messages, use_schema=True, schema=active_schema)
             except urllib.error.HTTPError:
                 schema_supported = False  # this Ollama server/model rejects the schema; don't retry it every turn
         return call_ollama(host, model, messages, use_schema=False)
@@ -456,16 +508,13 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             for attempt in range(MAX_PARSE_RETRIES + 1):
                 reply = ask_model()
                 reason, command, ok = parse_reply(reply)
-                if ok and accuse_needs_reason(command, reason, no_reason):
-                    ok = False  # --no-reason still requires a reason for accuse specifically
                 if ok:
                     break
-                # Malformed (or an unjustified accuse): retry with the
-                # conversation exactly as it was — nothing about the failed
-                # reply is added to `messages`, so as far as the model's own
-                # history is concerned, it never said this. (Sampling is
-                # stochastic, so an identical prompt can still yield a usable
-                # reply on the next attempt.)
+                # Malformed: retry with the conversation exactly as it was —
+                # nothing about the failed reply is added to `messages`, so as
+                # far as the model's own history is concerned, it never said
+                # this. (Sampling is stochastic, so an identical prompt can
+                # still yield a usable reply on the next attempt.)
         except (urllib.error.URLError, TimeoutError) as e:
             result["status"] = "OLLAMA_ERROR"
             result["error"] = str(e)
@@ -478,14 +527,27 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             # in the first place — retrying in that same context tends to
             # truncate again. Try one stateless, history-free call instead.
             fixed = repair_command(host, repair_model or model, reply)
-            # The repair schema only recovers "command" (see REPAIR_SCHEMA) —
-            # never a reason — so a repaired `accuse` in --no-reason mode can
-            # never carry a real justification. Don't let that slip through
-            # unjustified; leave it to a fresh attempt next turn instead.
-            if (fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS
-                    and not accuse_needs_reason(fixed, None, no_reason)):
+            if fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS:
                 command, reason, ok, repaired = fixed, "(repaired from a malformed reply)", True, True
                 result["repairs"] += 1
+
+        # full_explore's coverage gate is independent of --no-reason and needs
+        # no reply from the model to evaluate, so compute it before the
+        # reason-fetch below: a premature accuse gets blocked regardless of
+        # justification, and there's no point spending an extra Ollama call
+        # justifying a command that's never going to reach the game.
+        blocked = full_explore and ok and is_accuse(command) and not coverage_complete(turn)
+
+        # --no-reason's schema (NO_REASON_SCHEMA) structurally can't carry a
+        # "reason" — including on the one command that still needs one. Fetch
+        # it now (unless full_explore is about to block this attempt anyway),
+        # however this turn's command was obtained (normal, retried, or
+        # repaired). A failure here doesn't block the accusation: this is
+        # about capturing a rationale for the transcript, not re-litigating
+        # whether the model is allowed to accuse.
+        if ok and no_reason and is_accuse(command) and not blocked:
+            fetched = get_accuse_reason(host, model, messages, command)
+            reason = fetched or "(reason unavailable — follow-up call failed)"
 
         print(f"  [{i}] {command}" + ("  [repaired]" if repaired else "" if ok else "  [unparseable — not sent]"))
         if not (no_reason and reason in _NO_REASON_PLACEHOLDERS):
@@ -512,13 +574,15 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
         # a normal reply that's the model's raw output; for a repaired one,
         # the original broken text never goes into history at all (same
         # no-trace-of-failure principle as a plain retry) — a clean synthetic
-        # message stands in for it instead.
-        if repaired:
+        # message stands in for it instead. Same idea for a --no-reason
+        # accuse: its own reply never carried "reason" (the schema forbids
+        # it), so fold in what get_accuse_reason fetched — matters if the
+        # accusation is wrong and the game continues past this turn.
+        if repaired or (no_reason and is_accuse(command)):
             messages.append({"role": "assistant", "content": json.dumps({"command": command, "reason": reason})})
         else:
             messages.append({"role": "assistant", "content": reply.strip()})
 
-        blocked = full_explore and command.strip().lower().startswith("accuse") and not coverage_complete(turn)
         try:
             if blocked:
                 # Don't forward the accusation at all — query coverage instead
