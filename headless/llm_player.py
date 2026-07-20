@@ -18,6 +18,7 @@ Usage:
     python3 headless/llm_player.py --model gemma3n:e4b --max-turns 80
     python3 headless/llm_player.py --seed 42 --log-dir headless/llm_logs
     python3 headless/llm_player.py --full-explore --max-turns 150
+    python3 headless/llm_player.py --no-reason
 
 --full-explore forces a completionist playthrough: the model is told to visit
 every room and read every file before accusing, and any `accuse` attempted
@@ -26,6 +27,12 @@ intercepted client-side and never reaches the game — the model is shown
 exactly what it's missing (via the engine's `__coverage__` query) and gets
 another turn instead. Without the flag, behavior is unchanged: the model can
 accuse the moment it decides to, same as before.
+
+--no-reason drops the "reason" field for every command except `accuse` (which
+still requires one, and is retried — including through the repair path — if it
+arrives without one). Less for the model to generate each turn means less that
+can go wrong or get truncated; the tradeoff is a sparser transcript, since
+there's no per-command rationale to read back except for the final accusation.
 """
 
 import argparse
@@ -101,6 +108,13 @@ which reports how many rooms/files you've covered and lists exactly what's \
 left. If you try to accuse before everything is covered, it will be blocked \
 and you'll be shown what's missing instead — so keep exploring until \
 `__coverage__` shows full coverage, then accuse.
+"""
+
+NO_REASON_ADDENDUM = """
+
+For every command EXCEPT `accuse`, leave out "reason" entirely — reply with \
+ONLY {"command": "..."}. The one exception is `accuse`: that reply must \
+still include "reason", explaining the evidence behind your accusation.
 """
 
 STALL_WINDOW = 8  # identical trailing commands within this window => stalled
@@ -250,6 +264,21 @@ def coverage_complete(turn):
             and turn["files_read"] >= turn["files_total"])
 
 
+_NO_REASON_PLACEHOLDERS = {"", "(no reason given)", "(repaired from a malformed reply)"}
+
+
+def accuse_needs_reason(command, reason, no_reason_mode):
+    """True if this is an `accuse` in --no-reason mode with no real reason —
+    the one command that mode still requires a reason for. Used to reject an
+    otherwise-"ok" parse and force a retry, rather than let the game's most
+    consequential command through unjustified."""
+    if not no_reason_mode or not command:
+        return False
+    if command.strip().lower().split(None, 1)[0] != "accuse":
+        return False
+    return not reason or reason.strip() in _NO_REASON_PLACEHOLDERS
+
+
 def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None, num_predict=768):
     body_obj = {"model": model, "messages": messages, "stream": False,
                 "options": {"num_predict": num_predict}}
@@ -376,7 +405,7 @@ def parse_reply(reply):
     return reason, command, ok
 
 
-def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_model=None):
+def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_model=None, no_reason=False):
     args = ["lua", SERVE_SCRIPT]
     if seed is not None:
         args += ["--seed", str(seed)]
@@ -386,7 +415,9 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
     )
 
     transcript = []
-    system_prompt = SYSTEM_PROMPT + (FULL_EXPLORE_ADDENDUM if full_explore else "")
+    system_prompt = (SYSTEM_PROMPT
+                      + (FULL_EXPLORE_ADDENDUM if full_explore else "")
+                      + (NO_REASON_ADDENDUM if no_reason else ""))
     messages = [{"role": "system", "content": system_prompt}]
 
     turn = read_turn(proc)
@@ -425,13 +456,16 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             for attempt in range(MAX_PARSE_RETRIES + 1):
                 reply = ask_model()
                 reason, command, ok = parse_reply(reply)
+                if ok and accuse_needs_reason(command, reason, no_reason):
+                    ok = False  # --no-reason still requires a reason for accuse specifically
                 if ok:
                     break
-                # Malformed: retry with the conversation exactly as it was —
-                # nothing about the failed reply is added to `messages`, so as
-                # far as the model's own history is concerned, it never said
-                # this. (Sampling is stochastic, so an identical prompt can
-                # still yield a usable reply on the next attempt.)
+                # Malformed (or an unjustified accuse): retry with the
+                # conversation exactly as it was — nothing about the failed
+                # reply is added to `messages`, so as far as the model's own
+                # history is concerned, it never said this. (Sampling is
+                # stochastic, so an identical prompt can still yield a usable
+                # reply on the next attempt.)
         except (urllib.error.URLError, TimeoutError) as e:
             result["status"] = "OLLAMA_ERROR"
             result["error"] = str(e)
@@ -444,12 +478,18 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             # in the first place — retrying in that same context tends to
             # truncate again. Try one stateless, history-free call instead.
             fixed = repair_command(host, repair_model or model, reply)
-            if fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS:
+            # The repair schema only recovers "command" (see REPAIR_SCHEMA) —
+            # never a reason — so a repaired `accuse` in --no-reason mode can
+            # never carry a real justification. Don't let that slip through
+            # unjustified; leave it to a fresh attempt next turn instead.
+            if (fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS
+                    and not accuse_needs_reason(fixed, None, no_reason)):
                 command, reason, ok, repaired = fixed, "(repaired from a malformed reply)", True, True
                 result["repairs"] += 1
 
         print(f"  [{i}] {command}" + ("  [repaired]" if repaired else "" if ok else "  [unparseable — not sent]"))
-        print(f"       reason: {reason}")
+        if not (no_reason and reason in _NO_REASON_PLACEHOLDERS):
+            print(f"       reason: {reason}")
 
         if not ok:
             # Every retry (and the repair attempt) produced something that
@@ -457,7 +497,8 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             # "you mutter ... under your breath" — skip the game entirely and
             # let the model try again next turn.
             transcript.append({"turn": i, "game_output": None, "reason": reason,
-                                "command": command, "blocked": False, "parse_failed": True})
+                                "command": command, "blocked": False, "parse_failed": True,
+                                "raw_reply": "[failed] " + reply.strip()})
             result["turns"] = i
             result["parse_failures"] += 1
             consecutive_parse_failures += 1
@@ -568,6 +609,9 @@ def main():
     ap.add_argument("--repair-model", default=None,
                      help="model used for the stateless format-repair call after a reply "
                           "fails to parse (default: same as --model)")
+    ap.add_argument("--no-reason", action="store_true",
+                     help="skip the reasoning field for every command except `accuse` "
+                          "(which still requires one) — less to generate, less to truncate")
     args = ap.parse_args()
 
     os.makedirs(args.log_dir, exist_ok=True)
@@ -577,7 +621,8 @@ def main():
         run_seed = (args.seed + run_i) if args.seed is not None else None
         print(f"Run {run_i}/{args.runs} (model={args.model}, seed={run_seed}) ...")
         result, transcript = run_once(args.model, args.host, run_seed, args.max_turns, args.verbose,
-                                       full_explore=args.full_explore, repair_model=args.repair_model)
+                                       full_explore=args.full_explore, repair_model=args.repair_model,
+                                       no_reason=args.no_reason)
         summaries.append(result)
 
         log_path = os.path.join(args.log_dir, f"run_{run_i}_{int(time.time())}.json")
