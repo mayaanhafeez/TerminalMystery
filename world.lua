@@ -8,6 +8,19 @@ local M = {}
 
 M.title = "Strictly.ai — Series C Launch, Oct 14"
 
+M.intro = [[=== TERMINAL MYSTERY ===
+
+Strictly.ai just closed its Series C. At the launch party in the
+CEO's house, Arjun Mehta — VP of AI Research — is found dead in
+the Den, an empty bottle of kombucha beside him.
+
+Legal wants it kept quiet until you've had a look. Four engineers
+were in range of the Den during the window, and one of them is
+still here.
+
+You stand in the Entrance Hall. Type `help` to see what you can
+do. When you are certain, type `accuse <name>` to make your case.]]
+
 M.suspects = {
 	"Ayesha Raza",
 	"Wei Zhao",

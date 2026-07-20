@@ -27,18 +27,6 @@ local exit_prompt = { active = false }
 -- New-game intro typewriter: reveals the opening narration char-by-char over
 -- ~12s. Skippable by any key / mouse press. Inactive for restored games.
 local intro = { active = false }
-local INTRO = [[=== TERMINAL MYSTERY ===
-
-Strictly.ai just closed its Series C. At the launch party in the
-CEO's house, Arjun Mehta — VP of AI Research — is found dead in
-the Den, an empty bottle of kombucha beside him.
-
-Legal wants it kept quiet until you've had a look. Four engineers
-were in range of the Den during the window, and one of them is
-still here.
-
-You stand in the Entrance Hall. Type `help` to see what you can
-do. When you are certain, type `accuse <name>` to make your case.]]
 
 local function load_best()
 	if not love.filesystem.getInfo("scores.lua") then
@@ -164,7 +152,7 @@ local function start_intro()
 			segments[#segments + 1] = { text = "", kind = kind, pause_after = INTRO_PARA_PAUSE }
 		end
 	end
-	add_block(INTRO, "system")
+	add_block(World.intro, "system")
 	add_block(World.rooms.foyer.description, "output")
 
 	local total = 0

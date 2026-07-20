@@ -11,6 +11,7 @@ require("test.test_items")
 require("test.test_evidence")
 require("test.test_screen")
 require("test.test_save")
+require("test.test_solve")
 
 local T = require("test.runner")
 T.summary()
