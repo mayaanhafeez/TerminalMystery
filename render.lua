@@ -1282,7 +1282,7 @@ local function draw_win_screen(state, best)
 	end
 
 	table.insert(lines, { f = M.font, c = C.win_text, t = "" })
-	table.insert(lines, { f = M.font, c = C.term_dim, t = "press R to play again,  Esc to quit" })
+	table.insert(lines, { f = M.font, c = C.term_dim, t = "press R to play again,  Esc for title" })
 
 	-- compute total height for vertical centering
 	local total_h = 0
@@ -1370,6 +1370,61 @@ local function draw_popup_body(state, content, font, x, y, w, h, text_color, nav
 		love.graphics.printf(wrapped[i], x, yy, w, "left")
 		yy = yy + line_h
 	end
+	love.graphics.setScissor()
+
+	draw_page_nav(x, y + body_h, w, page, total, nav_color)
+end
+
+-- Render preformatted monospace `content` into (x, y, w, h): honor manual line
+-- breaks instead of word-wrapping, and shrink the font uniformly so the widest
+-- line fits `w` (never enlarge). Keeps ASCII columns and indentation intact for
+-- computer-log popups. Paginates vertically exactly like draw_popup_body.
+local function draw_popup_pre(state, content, font, x, y, w, h, text_color, nav_color)
+	love.graphics.setFont(font)
+
+	-- Split into physical lines, preserving blanks so vertical spacing survives.
+	local rows = {}
+	for line in (content .. "\n"):gmatch("(.-)\n") do
+		rows[#rows + 1] = line
+	end
+
+	-- Uniform scale so the widest line fits the available width (shrink only).
+	local maxw = 1
+	for _, line in ipairs(rows) do
+		local lw = font:getWidth(line)
+		if lw > maxw then maxw = lw end
+	end
+	local scale = math.min(1, w / maxw)
+	local line_h = font:getHeight() * scale
+
+	local function draw_rows(start_i, count, oy)
+		local yy = oy
+		love.graphics.setColor(text_color)
+		for i = start_i, math.min(start_i + count - 1, #rows) do
+			love.graphics.print(rows[i], x, yy, 0, scale, scale)
+			yy = yy + line_h
+		end
+	end
+
+	-- Fits without a nav strip?
+	if #rows <= math.max(1, math.floor(h / line_h)) then
+		M.popup_page_count = 1
+		M.popup_prev_rect = nil
+		M.popup_next_rect = nil
+		love.graphics.setScissor(x, y, w, h)
+		draw_rows(1, #rows, y)
+		love.graphics.setScissor()
+		return
+	end
+
+	local body_h = h - POPUP_NAV_H
+	local per = math.max(1, math.floor(body_h / line_h))
+	local total = math.max(1, math.ceil(#rows / per))
+	local page = math.max(1, math.min(math.floor(state.popup_page or 1), total))
+	M.popup_page_count = total
+
+	love.graphics.setScissor(x, y, w, body_h)
+	draw_rows((page - 1) * per + 1, per, y)
 	love.graphics.setScissor()
 
 	draw_page_nav(x, y + body_h, w, page, total, nav_color)
@@ -1560,7 +1615,7 @@ local function draw_popup(state)
 		local div_y = scr_y + pad + line_h + 6
 		love.graphics.line(scr_x + pad, div_y, scr_x + scr_w - pad, div_y)
 
-		draw_popup_body(state, item.content, M.font_mono,
+		draw_popup_pre(state, item.content, M.font_mono,
 			scr_x + pad, div_y + 10, scr_w - pad * 2, (scr_y + scr_h) - (div_y + 10) - 4,
 			{ 0.82, 0.88, 0.84 }, { 0.55, 0.85, 0.60 })
 
