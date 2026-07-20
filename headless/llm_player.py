@@ -31,6 +31,7 @@ accuse the moment it decides to, same as before.
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -82,11 +83,12 @@ When you have solid proof of who did it, respond with: accuse <surname>
 For EVERY turn, respond with ONLY a single JSON object, nothing before or \
 after it — no markdown fences, no extra prose:
 
-{"reason": "<one short sentence — why this command, given what you've learned so far>", "command": "<a single valid command from the list above>"}
+{"command": "<a single valid command from the list above>", "reason": "<one short sentence — why this command, given what you've learned so far>"}
 
-Keep "reason" to one short sentence. "command" is what actually runs, so it \
-must be exactly one command with no extra words. Do not explain your \
-reasoning outside the "reason" field — decide, then answer immediately.
+Decide the command FIRST, then write the reason — always write "command" \
+before "reason" in the JSON, in that order. "command" is what actually runs, \
+so it must be exactly one command with no extra words. Keep "reason" to one \
+short sentence; do not explain your reasoning outside that field.
 """
 
 FULL_EXPLORE_ADDENDUM = """
@@ -117,20 +119,44 @@ KNOWN_VERBS = {
 # format in the first place. Older Ollama servers that don't understand a
 # schema object here return an HTTP error, in which case call_ollama's caller
 # falls back to plain-text prompting (parse_reply understands both).
+#
+# "command" is listed FIRST on purpose: JSON-schema-constrained decoders
+# generate object keys in the order given, so if generation gets cut off
+# (hits num_predict, or the model just writes a long "reason"), a short
+# "command" already completed near the very start of the response, while a
+# "reason"-first ordering meant truncation regularly happened mid-"reason",
+# before "command" was ever written at all — losing the actual move entirely.
 RESPONSE_SCHEMA = {
     "type": "object",
     "properties": {
-        "reason": {"type": "string"},
         "command": {"type": "string"},
+        "reason": {"type": "string", "maxLength": 200},
     },
     "required": ["command"],
 }
 
-FORMAT_NUDGE = (
-    'Your last reply did not contain a usable command. Respond again with ONLY '
-    'one line of valid JSON: {"reason": "...", "command": "..."} where "command" '
-    "is exactly one of: " + ", ".join(sorted(KNOWN_VERBS - {"__coverage__"})) + "."
-)
+# Recovers a `"command": "..."` value via regex even when the surrounding JSON
+# is truncated/invalid — the safety net for a reply that got cut off partway
+# through "reason" (which now comes after "command", but a very short
+# num_predict or an unusually long command value could still truncate here).
+_COMMAND_RE = re.compile(r'"command"\s*:\s*"((?:[^"\\]|\\.)*)"')
+_REASON_RE = re.compile(r'"reason"\s*:\s*"((?:[^"\\]|\\.)*)"')
+
+
+def _json_unescape(s):
+    return s.encode("utf-8").decode("unicode_escape") if "\\" in s else s
+
+
+def try_partial_json(reply):
+    """Best-effort (reason, command) from a truncated/invalid JSON reply.
+    Returns (None, None) if no complete "command" value can be found."""
+    m = _COMMAND_RE.search(reply)
+    if not m:
+        return None, None
+    command = _json_unescape(m.group(1))
+    reason_m = _REASON_RE.search(reply)
+    reason = _json_unescape(reason_m.group(1)) if reason_m else None
+    return reason, command
 
 
 def read_turn(proc):
@@ -209,7 +235,7 @@ def coverage_complete(turn):
 
 def call_ollama(host, model, messages, timeout=120, use_schema=True):
     body_obj = {"model": model, "messages": messages, "stream": False,
-                "options": {"num_predict": 512}}
+                "options": {"num_predict": 768}}
     if use_schema:
         body_obj["format"] = RESPONSE_SCHEMA
     body = json.dumps(body_obj).encode("utf-8")
@@ -248,10 +274,13 @@ def extract_command(reply):
 def parse_reply(reply):
     """Splits a model reply into (reason, command, ok).
 
-    Tries structured JSON first (what the schema in call_ollama asks for),
-    then the legacy REASON:/COMMAND: text labels (in case the Ollama server
-    doesn't support `format` schemas and the model fell back to prose), then
-    best-effort single-line extraction as a last resort.
+    Tries, in order: a strict JSON parse (what the schema in call_ollama asks
+    for); a regex recovery of just the "command" value for a reply that got
+    cut off mid-generation (schema puts "command" first specifically so this
+    still works — see RESPONSE_SCHEMA's comment); the legacy REASON:/COMMAND:
+    text labels (in case the Ollama server doesn't support `format` schemas
+    and the model fell back to prose); and best-effort single-line extraction
+    as a last resort.
 
     ok is True only if `command`'s first token is a known game verb — a small
     model can produce syntactically fine JSON/text whose "command" is really
@@ -269,6 +298,11 @@ def parse_reply(reply):
             command = clean_command_token(str(data["command"]))
     except (json.JSONDecodeError, TypeError):
         pass
+
+    if command is None:
+        partial_reason, partial_command = try_partial_json(reply)
+        if partial_command:
+            reason, command = partial_reason, clean_command_token(partial_command)
 
     if command is None:
         for raw_line in reply.splitlines():
@@ -339,11 +373,11 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False):
                 reason, command, ok = parse_reply(reply)
                 if ok:
                     break
-                # Malformed: let the model see its own reply (truncated, so a
-                # rambling non-answer doesn't balloon context) plus a nudge,
-                # then retry within the same turn.
-                messages.append({"role": "assistant", "content": reply.strip()[:300]})
-                messages.append({"role": "user", "content": FORMAT_NUDGE})
+                # Malformed: retry with the conversation exactly as it was —
+                # nothing about the failed reply is added to `messages`, so as
+                # far as the model's own history is concerned, it never said
+                # this. (Sampling is stochastic, so an identical prompt can
+                # still yield a usable reply on the next attempt.)
         except (urllib.error.URLError, TimeoutError) as e:
             result["status"] = "OLLAMA_ERROR"
             result["error"] = str(e)
