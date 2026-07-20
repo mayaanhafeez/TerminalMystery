@@ -44,7 +44,7 @@ Catering staff dismissed at 9:00 PM per contract. Arjun Mehta
 	},
 
 	personnel_dossier = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		hidden  = true,
 		content = [[=== STRICTLY.AI — CONFIDENTIAL PERSONNEL FILE ===
@@ -125,17 +125,14 @@ ayesha  10:16 PM
 	},
 
 	repo_log = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		content = [[Recently-cloned repositories on this machine:
 
   jessai-agent-core
   hotfix-oct14                (praghavan)
   creatine-cycle-calculator   (praghavan, personal)
-  infra-billing-dashboard     (dlin)
-
-The creatine repo is a personal side project — Priya is deep
-into supplement stacks. A dead end, but a colorful one.]],
+  infra-billing-dashboard     (dlin)]],
 	},
 
 	cipher_note = {
@@ -248,7 +245,7 @@ A single balled-up nitrile glove is wedged behind it.]],
 	},
 
 	cellar_access_log = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		content = [[Wine-cellar smart-lock scan log:
 
@@ -262,7 +259,7 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 	-- ---------------- Garage ----------------
 
 	deploy_log = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		content = [[GitHub Actions — run history, repo `hotfix-oct14`:
 
@@ -292,7 +289,7 @@ this keyboard for the entire murder window. She's clear.]],
 	-- ---------------- Server Room (chmod-locked) ----------------
 
 	billing_audit = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		content = [[Q3 Infrastructure Cost Review (finance draft):
 
@@ -305,7 +302,7 @@ This is the money Arjun found.]],
 	},
 
 	dosage_log = {
-		sprite  = "book",
+		sprite  = "laptop",
 		popup   = "laptop",
 		content = [[Personal spreadsheet, "HRV Stack — n=1":
 
@@ -339,7 +336,7 @@ Arjun.]],
 	},
 
 	audit_stream = {
-		sprite   = "book",
+		sprite   = "laptop",
 		popup    = "laptop",
 		filename = "audit_stream.log",
 		content  = [[# facility access stream — raw
