@@ -208,8 +208,7 @@ local function grep(state, args)
 			return "Usage: grep [flags] <pattern> [file|*|.[^.]*]"
 		else
 			for _, fname in ipairs(targets) do
-				local include_hidden = flags.a or fname:sub(1, 1) == "."
-				local item = World.get_item(state.current_room, fname, include_hidden)
+				local item = World.get_item(state.current_room, fname)
 				if not item then
 					return "There is nothing here by that name."
 				end
