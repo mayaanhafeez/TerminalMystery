@@ -49,13 +49,16 @@ local function echo(_, args)
 end
 
 local function exit(_, args)
-  if #args == 0 then
-    return "To save type 'exit save'. To abdandon progress type 'exit nosave'"
-  elseif args[1] == "save" then
+  if args[1] == "save" then
     Save.save_state(GameScreen.state, "save_data.txt")
+    GameScreen.request_exit_to_play()
+    return ""
+  elseif args[1] == "nosave" then
+    GameScreen.request_exit_to_play()
+    return ""
   end
-  -- Play the CRT power-off, then the game screen hands off to the title.
-  GameScreen.request_exit_to_play()
+  -- Bare `exit`: open the interactive Y/n save prompt (handled in game.lua).
+  GameScreen.begin_exit_prompt()
   return ""
 end
 

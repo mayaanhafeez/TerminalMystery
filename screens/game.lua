@@ -19,6 +19,11 @@ local crt = { active = false, mode = "on", t = 0, duration = 0.8 }
 -- textinput for printable keys; this swallows that char so it isn't typed.
 local crt_swallow_text = false
 
+-- Interactive exit prompt. When active the terminal shows "Do you wish to
+-- save? (Y/n)" and the next Y/N/Esc keypress resolves it (no Enter needed).
+-- Input is otherwise frozen, mirroring popup_item / crt.
+local exit_prompt = { active = false }
+
 -- New-game intro typewriter: reveals the opening narration char-by-char over
 -- ~12s. Skippable by any key / mouse press. Inactive for restored games.
 local intro = { active = false }
@@ -302,6 +307,28 @@ function M.request_exit_to_play()
 	crt.t = 0
 end
 
+-- Called by the bare `exit` command: freeze input and show the save prompt.
+function M.begin_exit_prompt()
+	clear_tab_state()
+	exit_prompt.active = true
+	push_text("Do you wish to save? (Y/n)", "system")
+end
+
+-- Resolve the exit prompt: "save" | "nosave" | "cancel".
+local function resolve_exit_prompt(choice)
+	exit_prompt.active = false
+	if choice == "save" then
+		Save.save_state(state, "save_data.txt")
+		M.request_exit_to_play()
+	elseif choice == "nosave" then
+		M.request_exit_to_play()
+	else
+		-- cancel: drop back to the live terminal.
+		push_text("Exit cancelled.", "system")
+		push_text("", "output")
+	end
+end
+
 function M.update(dt)
 	-- Clear the one-shot text-swallow (events for this frame already ran).
 	crt_swallow_text = false
@@ -364,6 +391,9 @@ function M.text_input(t)
 		finish_intro()
 		return
 	end
+	if exit_prompt.active then
+		return
+	end
 	if state.popup_item then
 		return
 	end
@@ -389,6 +419,17 @@ function M.keypressed(key)
 	end
 	if intro.active then
 		finish_intro()
+		crt_swallow_text = true
+		return
+	end
+	if exit_prompt.active then
+		if key == "y" or key == "return" or key == "kpenter" then
+			resolve_exit_prompt("save")
+		elseif key == "n" then
+			resolve_exit_prompt("nosave")
+		elseif key == "escape" then
+			resolve_exit_prompt("cancel")
+		end
 		crt_swallow_text = true
 		return
 	end
