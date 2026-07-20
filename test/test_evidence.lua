@@ -41,7 +41,7 @@ T.test("deleting the cellar clause reproduces slack_final's body", function()
     local s = make_state("server_room")
     local out = Evidence.sed(s, {
         "s/ (stepped out ~5 min around 10 to grab something from the cellar)//",
-        "slack_draft.txt",
+        ".slack_draft.txt",
     })
     local final_body = "  in the home office all night fighting a deploy, "
         .. "didn't even hear the emacs/vim thing kick off lol"
