@@ -145,6 +145,21 @@ ayesha  10:16 PM
   (shift three back, same as always)]],
 	},
 
+	slack_eng_help = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "#eng-help",
+		content = [[ayesha  9:36 PM
+  stuck in vim on the prod box. how do i replace text without emacs
+priya  9:37 PM
+  :s/old/new/ does the first match on a line, add g for all of them
+  :%s/old/new/g for the whole file — same syntax as sed
+ayesha  9:38 PM
+  so basically sed -i 's/old/new/g' on the file. got it, hate it
+priya  9:38 PM
+  you'll live]],
+	},
+
 	-- ---------------- The Den ----------------
 
 	victim = {
@@ -281,6 +296,20 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 
   with a hand-drawn A-Z mirror chart underneath
   (A<->Z, B<->Y, C<->X, ...).]],
+	},
+
+	slack_grep_help = {
+		sprite  = "laptop",
+		popup   = "slack",
+		channel = "DM: wei zhao",
+		content = [[leo  9:44 PM
+  wei how do i find which file mentions someone without opening every one
+wei  9:45 PM
+  grep -r <name>. searches every file, prints the hits with filenames
+leo  9:46 PM
+  and if i just want the filenames, not all the lines
+wei  9:46 PM
+  grep -rl <name>. a handle turns up in more places than you'd think]],
 	},
 
 	-- ---------------- Server Room (chmod-locked) ----------------

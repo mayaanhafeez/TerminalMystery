@@ -220,11 +220,11 @@ T.test("several copies in one room stay non-overlapping", function()
     -- whenever one exists, not just get lucky with random scatter.
     for seed = 1, 40 do
         math.randomseed(seed)
-        local s = make_state("home_office", {"home_office"})
+        local s = make_state("sunroom", {"sunroom"})
         for i = 1, 3 do
-            Items.cp(s, {"draft_email.txt", "c" .. i .. ".txt"})
+            Items.cp(s, {"espresso_bar.txt", "c" .. i .. ".txt"})
         end
-        local items = World.get_items_in_room("home_office")
+        local items = World.get_items_in_room("sunroom")
         for i = 1, #items do
             for j = i + 1, #items do
                 T.ok(not overlaps(items[i], items[j]),
@@ -232,7 +232,7 @@ T.test("several copies in one room stay non-overlapping", function()
                     " overlaps " .. items[j].filename)
             end
         end
-        for i = 1, 3 do World.rooms.home_office.items["c" .. i .. ".txt"] = nil end
+        for i = 1, 3 do World.rooms.sunroom.items["c" .. i .. ".txt"] = nil end
     end
 end)
 

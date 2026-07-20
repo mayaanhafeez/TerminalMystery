@@ -92,14 +92,14 @@ T.test("returns all non-hidden items", function()
 end)
 
 T.test("excludes hidden items by default", function()
-    -- office_meme in the game room is hidden
+    -- game room has slack_grep_help (visible) + office_meme (hidden)
     local items = World.get_items_in_room("game_room")
-    T.eq(#items, 0)
+    T.eq(#items, 1)
 end)
 
 T.test("hidden items appear with include_hidden", function()
     local items = World.get_items_in_room("game_room", true)
-    T.eq(#items, 1)
+    T.eq(#items, 2)
 end)
 
 T.test("invalid room returns empty list", function()

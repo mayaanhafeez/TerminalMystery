@@ -140,6 +140,7 @@ A terminal window shows a list of recently-cloned repos.]],
 			{ ref = "draft_email", x = 0.35, y = 0.55 },
 			{ ref = "repo_log", x = 0.70, y = 0.35 },
 			{ ref = "cipher_note", x = 0.55, y = 0.72 },
+			{ ref = "slack_eng_help", x = 0.20, y = 0.30 },
 		},
     tiles = {
       legend = {
@@ -520,6 +521,7 @@ A printout is pinned to the side of the cabinet.]],
 		},
 		items = {
 			{ ref = "office_meme", x = 0.50, y = 0.55 },
+			{ ref = "slack_grep_help", x = 0.30, y = 0.35 },
 		},
     tiles = {
       legend = {
