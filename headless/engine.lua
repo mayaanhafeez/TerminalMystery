@@ -40,11 +40,93 @@ function Session.new(seed)
     local self = setmetatable({}, Session)
     self.state = World.new_state()
     self.ended = false
+
+    -- Snapshot the pristine room/file layout for completionist coverage
+    -- tracking (Session:coverage). Taken once, here, because mv/cp/rm mutate
+    -- World.rooms as the game runs, and "have you seen everything" should
+    -- mean the original layout, not whatever's left after files get moved
+    -- around or destroyed.
+    self.total_rooms = {}
+    for id in pairs(World.rooms) do
+        table.insert(self.total_rooms, id)
+    end
+    table.sort(self.total_rooms)
+
+    self.total_files = {}
+    for _, room_id in ipairs(self.total_rooms) do
+        local fnames = {}
+        for filename in pairs(World.rooms[room_id].items) do
+            table.insert(fnames, filename)
+        end
+        table.sort(fnames)
+        for _, filename in ipairs(fnames) do
+            table.insert(self.total_files, room_id .. "/" .. filename)
+        end
+    end
+
     return self
 end
 
 function Session:intro_text()
     return World.intro .. "\n\n" .. World.rooms.foyer.description
+end
+
+-- ~/room/subroom style path for the current room — same notation `pwd`
+-- prints (commands/navigation.lua's local room_path, duplicated here since
+-- it isn't exported). Exposed so a driver can remind an LLM player exactly
+-- where it is every turn without spending a real `pwd` command: the room
+-- tree isn't flat (most rooms are only reachable via `cd ..` first), and a
+-- player/model that only sees prose descriptions easily loses track of it.
+function Session:current_path()
+    local parts = {}
+    local id = self.state.current_room
+    while id do
+        table.insert(parts, World.rooms[id].id)
+        id = World.rooms[id].parent
+    end
+    local n = #parts
+    for i = 1, math.floor(n / 2) do
+        parts[i], parts[n - i + 1] = parts[n - i + 1], parts[i]
+    end
+    parts[1] = "~"
+    if n == 1 then return "~" end
+    return table.concat(parts, "/")
+end
+
+-- Completionist coverage against the pristine snapshot taken at Session.new.
+-- Used by the `__coverage__` query below and by headless/serve.lua's STATUS
+-- line (for a driver that wants to gate on "has everything been seen yet").
+function Session:coverage()
+    local rooms_visited = 0
+    for _ in pairs(self.state.visited) do
+        rooms_visited = rooms_visited + 1
+    end
+    local files_read = 0
+    for _ in pairs(self.state.files_read) do
+        files_read = files_read + 1
+    end
+
+    local missing_rooms = {}
+    for _, id in ipairs(self.total_rooms) do
+        if not self.state.visited[id] then
+            table.insert(missing_rooms, id)
+        end
+    end
+    local missing_files = {}
+    for _, path in ipairs(self.total_files) do
+        if not self.state.files_read[path] then
+            table.insert(missing_files, path)
+        end
+    end
+
+    return {
+        rooms_visited = rooms_visited,
+        rooms_total = #self.total_rooms,
+        files_read = files_read,
+        files_total = #self.total_files,
+        missing_rooms = missing_rooms,
+        missing_files = missing_files,
+    }
 end
 
 local function snapshot(state, ended, err)
@@ -74,6 +156,24 @@ function Session:run(input)
     if cmd == "exit" or cmd == "quit" then
         self.ended = true
         return "", snapshot(self.state, true)
+    end
+
+    -- Debug/QA-only query, not part of the in-game `help` vocabulary: reports
+    -- completionist progress against the pristine snapshot. Doesn't touch
+    -- command_count/elapsed since it isn't a real investigative move.
+    if cmd == "__coverage__" then
+        local cov = self:coverage()
+        local lines = {
+            string.format("Rooms visited: %d/%d", cov.rooms_visited, cov.rooms_total),
+        }
+        if #cov.missing_rooms > 0 then
+            table.insert(lines, "  Not yet visited: " .. table.concat(cov.missing_rooms, ", "))
+        end
+        table.insert(lines, string.format("Files read: %d/%d", cov.files_read, cov.files_total))
+        if #cov.missing_files > 0 then
+            table.insert(lines, "  Not yet read: " .. table.concat(cov.missing_files, ", "))
+        end
+        return table.concat(lines, "\n"), snapshot(self.state, false)
     end
 
     -- Mirror screens/game.lua's per-frame `state.elapsed = getTime() -

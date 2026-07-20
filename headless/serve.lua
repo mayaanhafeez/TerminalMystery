@@ -13,7 +13,18 @@
 --   <output text, one or more lines>
 --   <<END>>
 --   STATUS <OK|WON|ENDED|ERROR> commands=<n> elapsed=<n> room=<room_id>
+--          rooms=<visited>/<total> files=<read>/<total> path=<~/room/subroom>
 --   [ERROR_DETAIL <message>]           -- only present when STATUS is ERROR
+--
+-- The rooms=/files= fields are completionist coverage against the pristine
+-- room/file layout (Session:coverage in headless/engine.lua) — for a driver
+-- gating on "has everything been seen yet" without an extra round-trip. Send
+-- the command `__coverage__` for the human-readable version, which also lists
+-- exactly which rooms/files are still missing.
+--
+-- path= is the same ~/room/subroom notation `pwd` prints (Session:current_path)
+-- — the room tree isn't flat, so a driver should show this to a model every
+-- turn or it'll assume every room is one `cd` away from wherever it is.
 --
 -- After WON, ENDED, or ERROR the process exits (0 for WON/ENDED, 1 for
 -- ERROR) — the driver should stop reading once the process exits rather than
@@ -58,9 +69,12 @@ local function emit(output, meta)
         status = "OK"
     end
 
+    local cov = session:coverage()
     io.write(string.format(
-        "STATUS %s commands=%d elapsed=%.0f room=%s\n",
-        status, meta.command_count or 0, meta.elapsed or 0, meta.current_room or ""
+        "STATUS %s commands=%d elapsed=%.0f room=%s rooms=%d/%d files=%d/%d path=%s\n",
+        status, meta.command_count or 0, meta.elapsed or 0, meta.current_room or "",
+        cov.rooms_visited, cov.rooms_total, cov.files_read, cov.files_total,
+        session:current_path()
     ))
     if meta.error then
         io.write("ERROR_DETAIL " .. tostring(meta.error):gsub("\n", " ") .. "\n")
