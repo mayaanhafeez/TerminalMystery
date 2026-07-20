@@ -43,7 +43,7 @@ M.accuse_aliases = {
 --   item filename → id .. ".txt"             (e.g. "guest_list" → "guest_list.txt")
 local raw = {
 	foyer = {
-		name = "Entrance Hall",
+		name = "entrance_hall",
 		description = [[The Entrance Hall of Trent Kessler's house in the hills.
 
 Series C banners still hang from the balcony. Half the
@@ -118,7 +118,7 @@ logged into Slack.]],
 
 	home_office = {
 		parent = "foyer",
-		name = "Home Office",
+		name = "home_office",
 		description = [[The Home Office.
 
 Trent's personal workspace — a standing desk, a wall of monitors,
@@ -187,7 +187,7 @@ A terminal window shows a list of recently-cloned repos.]],
 
 	den = {
 		parent = "foyer",
-		name = "The Den",
+		name = "the_den",
 		description = [[The Den. This is where it happened.
 
 A home theater, deep couches, the remains of the launch demo
@@ -308,7 +308,7 @@ was crumpled up and dropped in the corner in a hurry.]],
 
 	sunroom = {
 		parent = "foyer",
-		name = "Sunroom",
+		name = "sunroom",
 		description = [[The Sunroom.
 
 Glass on three sides, string lights, and a very expensive
@@ -374,7 +374,7 @@ A spare guest badge has been left on the counter.]],
 
 	cellar = {
 		parent = "foyer",
-		name = "Wine Cellar",
+		name = "wine_cellar",
 		requires = "keycard.txt",
 		description = [[The Wine Cellar, down a flight of stairs.
 
@@ -437,7 +437,7 @@ white is wedged face-down between two of the racks.]],
 
 	garage = {
 		parent = "foyer",
-		name = "Garage",
+		name = "garage",
 		description = [[The Garage.
 
 Converted into an overflow workspace: a folding table, a
@@ -453,7 +453,8 @@ A GitHub Actions run history is still up on the screen.]],
 			{ "mirror", 0.70, 215 },
 		},
 		items = {
-			{ ref = "deploy_log", x = 0.45, y = 0.55 },
+			{ ref = "deploy_log", x = 0.42, y = 0.55 },
+			{ ref = "dosage_log", x = 0.68, y = 0.42 },
 		},
     tiles = {
       legend = {
@@ -501,7 +502,7 @@ A GitHub Actions run history is still up on the screen.]],
 
 	game_room = {
 		parent = "foyer",
-		name = "Game Room",
+		name = "game_room",
 		description = [[The Game Room.
 
 A stand-up arcade cabinet, a couch, and a laptop someone left
@@ -566,7 +567,7 @@ A printout is pinned to the side of the cabinet.]],
 
 	server_room = {
 		parent = "foyer",
-		name = "Server Room",
+		name = "server_room",
 		mode = "000",
 		lock_code = "foxglove",
 		description = [[The Server Room.
@@ -586,7 +587,6 @@ spreadsheet, and a raw access log.]],
 		},
 		items = {
 			{ ref = "billing_audit", x = 0.24, y = 0.42 },
-			{ ref = "dosage_log", x = 0.50, y = 0.60 },
 			{ ref = "slack_final", x = 0.74, y = 0.40 },
 			{ ref = "slack_draft", x = 0.74, y = 0.70 },
 			{ ref = "audit_stream", x = 0.40, y = 0.80 },
@@ -667,6 +667,11 @@ local function build_rooms()
         end
         item.id = placement.ref
         item.filename = reg.filename or (placement.ref .. ".txt")
+        -- Hidden evidence is a real dotfile: only `ls -a` / `grep -a` and the
+        -- `.[^.]*` glob surface it, matching Unix convention.
+        if reg.hidden and not item.filename:match("^%.") then
+          item.filename = "." .. item.filename
+        end
         item.x = placement.x
         item.y = placement.y
         item.room = id
