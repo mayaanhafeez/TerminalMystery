@@ -65,12 +65,17 @@ function M.execute(state, input)
     if state.start_time == nil then
         state.start_time = love.timer.getTime()
     end
-    state.command_count = state.command_count + 1
 
     local tokens = tokenize(input)
     local cmd = tokens[1]:lower()
     local args = {}
     for i = 2, #tokens do args[i - 1] = tokens[i] end
+
+    -- `exit` is meta (quit/save prompt), not an investigative move, so it
+    -- doesn't count toward the command score.
+    if cmd ~= "exit" then
+        state.command_count = state.command_count + 1
+    end
 
     local handler = handlers[cmd]
     if not handler then

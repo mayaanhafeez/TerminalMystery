@@ -443,10 +443,12 @@ function M.keypressed(key)
 		end
 		return
 	end
-	-- win screen: only R
+	-- win screen: R restarts, Esc returns to the title
 	if state.won then
 		if key == "r" then
       M.start_new()
+		elseif key == "escape" then
+			M.request_exit_to_play()
 		end
 		return
 	end
