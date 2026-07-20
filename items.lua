@@ -261,16 +261,13 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 	deploy_log = {
 		sprite  = "laptop",
 		popup   = "laptop",
-		content = [[GitHub Actions — run history, repo `hotfix-oct14`:
+		content = [[Pull request #482 — hotfix-oct14 -> main
+  author: praghavan
 
-  triggered by: praghavan
-  10:02 PM  build started
+  10:02 PM  checks started
   10:07 PM  tests running
-  10:14 PM  deploy step
-  10:19 PM  run completed  [ok]
-
-Continuous activity, one operator, 10:02-10:19 PM. Priya was at
-this keyboard for the entire murder window. She's clear.]],
+  10:19 PM  all checks passed  [ok]
+  10:21 PM  merged into main by praghavan]],
 	},
 
 	-- ---------------- Game Room ----------------
