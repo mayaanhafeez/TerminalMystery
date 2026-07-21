@@ -19,6 +19,7 @@ Usage:
     python3 headless/llm_player.py --seed 42 --log-dir headless/llm_logs
     python3 headless/llm_player.py --full-explore --max-turns 150
     python3 headless/llm_player.py --no-reason
+    python3 headless/llm_player.py --num-ctx 65536 --request-timeout 900
 
 --full-explore forces a completionist playthrough: the model is told to visit
 every room and read every file before accusing, and any `accuse` attempted
@@ -121,6 +122,34 @@ that one clearly and specifically when it comes.
 STALL_WINDOW = 8  # identical trailing commands within this window => stalled
 MAX_PARSE_RETRIES = 2  # extra Ollama calls per turn if the reply has no usable command
 MAX_CONSECUTIVE_PARSE_FAILURES = 3  # whole turns (each already retried) before giving up the run
+MAX_CONSECUTIVE_NET_ERRORS = 3  # consecutive Ollama call failures (timeouts etc.) before aborting the run
+
+# Ollama's context window. This MUST be set explicitly: when it isn't, Ollama
+# silently defaults to a tiny 4096-token window regardless of the model's real
+# capacity (gemma reports 131072). The game transcript grows ~one game-output
+# + one command per turn, and by roughly turn 25-35 the accumulated history
+# crosses 4096. Ollama then drops the FRONT of the prompt to fit — including
+# the system prompt that defines the required JSON format — so the model emits
+# empty or first-token-truncated output ({"command":) and every remaining turn
+# parse-fails. Symptom looked like the model "getting dumber late-game" or
+# "--no-reason not working with --full-explore" (which just fills the window
+# faster); the real cause was always this. 32768 is the sweet spot: a whole
+# game is well under 10k tokens, so this is 3x+ headroom, while NOT paying for
+# a giant KV cache. (We briefly defaulted to the model's full 131072 window,
+# but on a memory-constrained box — e.g. a 12B model on 16GB RAM — that KV
+# allocation causes swapping/latency spikes that push individual turns past the
+# request timeout; see DEFAULT_REQUEST_TIMEOUT.) The SAME value is threaded
+# through every Ollama call on purpose: changing num_ctx between calls makes
+# Ollama reload the model, so the small repair/reason calls reuse the loop's.
+DEFAULT_NUM_CTX = 32768
+
+# Per-request timeout for an Ollama call, in seconds. Big models on modest
+# hardware are slow: gemma4:12b on a 16GB Mac runs ~50-80s PER TURN, and a
+# heavier late-game turn (or one that hits memory pressure) can spike well past
+# a minute. The old hardcoded 120s aborted whole 30+-turn runs on a single slow
+# turn ("OLLAMA_ERROR: timed out"). 600s is ~8x the observed average, enough
+# that a normal slow turn never trips it. Overridable with --request-timeout.
+DEFAULT_REQUEST_TIMEOUT = 600
 
 KNOWN_VERBS = {
     "ls", "cd", "pwd", "cwd", "cat", "grep", "find", "diff", "sed",
@@ -269,6 +298,11 @@ def read_turn(proc):
 
 
 def send_and_read(proc, command):
+    # Defence in depth: one command per line is the protocol contract, and
+    # violating it desyncs read_turn (see clean_command_token). Anything that
+    # reaches here with a newline gets truncated to its first line rather than
+    # being allowed to inject an extra, unread turn into the game.
+    command = command.split("\n", 1)[0].strip()
     proc.stdin.write(command + "\n")
     proc.stdin.flush()
     return read_turn(proc)
@@ -296,9 +330,10 @@ def is_accuse(command):
     return bool(command) and command.strip().lower().split(None, 1)[0] == "accuse"
 
 
-def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None, num_predict=768):
+def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None,
+                num_predict=768, num_ctx=DEFAULT_NUM_CTX):
     body_obj = {"model": model, "messages": messages, "stream": False,
-                "options": {"num_predict": num_predict}}
+                "options": {"num_predict": num_predict, "num_ctx": num_ctx}}
     if use_schema:
         body_obj["format"] = schema or RESPONSE_SCHEMA
     body = json.dumps(body_obj).encode("utf-8")
@@ -311,7 +346,7 @@ def call_ollama(host, model, messages, timeout=120, use_schema=True, schema=None
     return data["message"]["content"]
 
 
-def repair_command(host, model, broken_reply, timeout=30):
+def repair_command(host, model, broken_reply, timeout=30, num_ctx=DEFAULT_NUM_CTX):
     """Stateless, zero-history call whose only job is recovering the command a
     broken reply was trying to send. Unlike a same-context retry, this isn't
     subject to whatever accumulated-history context pressure likely caused the
@@ -325,10 +360,11 @@ def repair_command(host, model, broken_reply, timeout=30):
     ]
     try:
         reply = call_ollama(host, model, messages, timeout=timeout,
-                             use_schema=True, schema=REPAIR_SCHEMA, num_predict=64)
+                             use_schema=True, schema=REPAIR_SCHEMA, num_predict=64, num_ctx=num_ctx)
     except urllib.error.HTTPError:
         try:
-            reply = call_ollama(host, model, messages, timeout=timeout, use_schema=False, num_predict=64)
+            reply = call_ollama(host, model, messages, timeout=timeout, use_schema=False,
+                                num_predict=64, num_ctx=num_ctx)
         except (urllib.error.URLError, TimeoutError):
             return None
     except (urllib.error.URLError, TimeoutError):
@@ -348,7 +384,7 @@ def repair_command(host, model, broken_reply, timeout=30):
     return clean_command_token(command) or None
 
 
-def get_accuse_reason(host, model, messages, command, timeout=60):
+def get_accuse_reason(host, model, messages, command, timeout=60, num_ctx=DEFAULT_NUM_CTX):
     """--no-reason's schema structurally forbids a "reason" field on every
     turn (see NO_REASON_SCHEMA), including the turn where the model decides
     to `accuse` — so once that happens, this asks for the justification in a
@@ -362,10 +398,11 @@ def get_accuse_reason(host, model, messages, command, timeout=60):
     ]
     try:
         reply = call_ollama(host, model, followup, timeout=timeout,
-                             use_schema=True, schema=REASON_ONLY_SCHEMA, num_predict=200)
+                             use_schema=True, schema=REASON_ONLY_SCHEMA, num_predict=200, num_ctx=num_ctx)
     except urllib.error.HTTPError:
         try:
-            reply = call_ollama(host, model, followup, timeout=timeout, use_schema=False, num_predict=200)
+            reply = call_ollama(host, model, followup, timeout=timeout, use_schema=False,
+                                num_predict=200, num_ctx=num_ctx)
         except (urllib.error.URLError, TimeoutError):
             return None
     except (urllib.error.URLError, TimeoutError):
@@ -382,9 +419,22 @@ def get_accuse_reason(host, model, messages, command, timeout=60):
 
 
 def clean_command_token(text):
-    """Strip fencing/prompt cruft a model might wrap a bare command in."""
+    """Strip fencing/prompt cruft a model might wrap a bare command in, and
+    collapse it to a SINGLE line.
+
+    The single-line part is load-bearing, not cosmetic: serve.lua's protocol is
+    one command per line, and send_and_read writes `command + "\\n"` to its
+    stdin. A reply like {"command": "cd ..\\nsunroom"} would therefore push TWO
+    commands into the game while read_turn consumes only ONE turn of output —
+    silently desyncing the reader by a turn, permanently, and by one more with
+    every further multi-line command, until the transcript is attributing each
+    game response to the wrong command and the run finally dies as CRASHED.
+    (parse_reply only checks that the FIRST token is a known verb, so these
+    slip through its validation.)"""
     text = text.strip().strip("`").strip()
     text = text.lstrip("$> ").strip()
+    if "\n" in text:
+        text = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
     return text
 
 
@@ -455,7 +505,8 @@ def parse_reply(reply):
     return reason, command, ok
 
 
-def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_model=None, no_reason=False):
+def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_model=None,
+             no_reason=False, num_ctx=DEFAULT_NUM_CTX, req_timeout=DEFAULT_REQUEST_TIMEOUT):
     args = ["lua", SERVE_SCRIPT]
     if seed is not None:
         args += ["--seed", str(seed)]
@@ -494,31 +545,71 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
         nonlocal schema_supported
         if schema_supported:
             try:
-                return call_ollama(host, model, messages, use_schema=True, schema=active_schema)
+                reply = call_ollama(host, model, messages, use_schema=True, schema=active_schema,
+                                    num_ctx=num_ctx, timeout=req_timeout)
             except urllib.error.HTTPError:
                 schema_supported = False  # this Ollama server/model rejects the schema; don't retry it every turn
-        return call_ollama(host, model, messages, use_schema=False)
+            else:
+                if reply and reply.strip():
+                    return reply
+                # An EMPTY reply under grammar-constrained decoding. Some models
+                # (observed: gemma4:12b) intermittently emit an immediate stop
+                # token when a `format` schema is active — flaky, and it worsens
+                # under memory/compute pressure, so a run's later turns start
+                # coming back blank and every same-context retry blanks the same
+                # way. Plain (no-schema) prompting generates normally, and
+                # parse_reply already understands unfenced JSON/prose, so drop
+                # the schema for the REST of this run and re-ask without it now.
+                # (--no-reason loses nothing: Ollama ignores the schema's
+                # additionalProperties anyway, so reasons already leak through.)
+                schema_supported = False
+        return call_ollama(host, model, messages, use_schema=False, num_ctx=num_ctx, timeout=req_timeout)
 
     consecutive_parse_failures = 0
+    consecutive_net_errors = 0
     start_wall = time.time()
     for i in range(1, max_turns + 1):
         reason = command = None
         ok = False
-        try:
-            for attempt in range(MAX_PARSE_RETRIES + 1):
+        reply = ""
+        net_error = None
+        for attempt in range(MAX_PARSE_RETRIES + 1):
+            try:
                 reply = ask_model()
-                reason, command, ok = parse_reply(reply)
-                if ok:
-                    break
-                # Malformed: retry with the conversation exactly as it was —
-                # nothing about the failed reply is added to `messages`, so as
-                # far as the model's own history is concerned, it never said
-                # this. (Sampling is stochastic, so an identical prompt can
-                # still yield a usable reply on the next attempt.)
-        except (urllib.error.URLError, TimeoutError) as e:
-            result["status"] = "OLLAMA_ERROR"
-            result["error"] = str(e)
-            break
+            except (urllib.error.URLError, TimeoutError) as e:
+                # A slow turn timing out, or a transient server hiccup. Don't
+                # burn the remaining parse-retries hammering it — bail out of
+                # the attempt loop and let the per-turn handling below decide
+                # whether to skip this turn or give up the run.
+                net_error = str(e)
+                break
+            reason, command, ok = parse_reply(reply)
+            if ok:
+                break
+            # Malformed: retry with the conversation exactly as it was —
+            # nothing about the failed reply is added to `messages`, so as
+            # far as the model's own history is concerned, it never said
+            # this. (Sampling is stochastic, so an identical prompt can
+            # still yield a usable reply on the next attempt.)
+
+        if net_error is not None and not ok:
+            # An Ollama call failed (typically a slow late-game turn exceeding
+            # the request timeout). One blip must NOT kill a 40-minute run:
+            # skip this turn and retry next iteration — `messages` is unchanged,
+            # so it's a clean retry. Only abort if the server keeps failing
+            # several turns running (genuinely down or overloaded).
+            consecutive_net_errors += 1
+            result["error"] = net_error
+            print(f"  [{i}] <ollama error: {net_error}> — skipping turn "
+                  f"({consecutive_net_errors}/{MAX_CONSECUTIVE_NET_ERRORS})")
+            transcript.append({"turn": i, "game_output": None, "reason": None,
+                               "command": None, "blocked": False, "ollama_error": net_error})
+            result["turns"] = i
+            if consecutive_net_errors >= MAX_CONSECUTIVE_NET_ERRORS:
+                result["status"] = "OLLAMA_ERROR"
+                break
+            continue
+        consecutive_net_errors = 0
 
         repaired = False
         if not ok:
@@ -526,7 +617,7 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             # accumulated history, which is likely what caused the truncation
             # in the first place — retrying in that same context tends to
             # truncate again. Try one stateless, history-free call instead.
-            fixed = repair_command(host, repair_model or model, reply)
+            fixed = repair_command(host, repair_model or model, reply, num_ctx=num_ctx, timeout=req_timeout)
             if fixed and fixed.split(None, 1)[0].lower() in KNOWN_VERBS:
                 command, reason, ok, repaired = fixed, "(repaired from a malformed reply)", True, True
                 result["repairs"] += 1
@@ -546,7 +637,7 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
         # about capturing a rationale for the transcript, not re-litigating
         # whether the model is allowed to accuse.
         if ok and no_reason and is_accuse(command) and not blocked:
-            fetched = get_accuse_reason(host, model, messages, command)
+            fetched = get_accuse_reason(host, model, messages, command, num_ctx=num_ctx, timeout=req_timeout)
             reason = fetched or "(reason unavailable — follow-up call failed)"
 
         print(f"  [{i}] {command}" + ("  [repaired]" if repaired else "" if ok else "  [unparseable — not sent]"))
@@ -601,7 +692,7 @@ def run_once(model, host, seed, max_turns, verbose, full_explore=False, repair_m
             break
 
         transcript.append({"turn": i, "game_output": turn["output"], "reason": reason,
-                            "command": command, "blocked": blocked})
+                            "command": command, "blocked": blocked, "raw_reply": reply})
         messages.append({"role": "user", "content": with_location(turn)})
 
         if verbose:
@@ -676,6 +767,14 @@ def main():
     ap.add_argument("--no-reason", action="store_true",
                      help="skip the reasoning field for every command except `accuse` "
                           "(which still requires one) — less to generate, less to truncate")
+    ap.add_argument("--num-ctx", type=int, default=DEFAULT_NUM_CTX,
+                     help=f"Ollama context window in tokens (default: {DEFAULT_NUM_CTX}). Must be "
+                          "large enough to hold the whole game transcript; too small silently drops "
+                          "the system prompt mid-game and every later turn parse-fails")
+    ap.add_argument("--request-timeout", type=float, default=DEFAULT_REQUEST_TIMEOUT,
+                     help=f"per-Ollama-call timeout in seconds (default: {DEFAULT_REQUEST_TIMEOUT}). "
+                          "Big models on modest hardware run 50-80s/turn; too small aborts whole runs "
+                          "with 'OLLAMA_ERROR: timed out' on a single slow turn")
     args = ap.parse_args()
 
     os.makedirs(args.log_dir, exist_ok=True)
@@ -686,7 +785,8 @@ def main():
         print(f"Run {run_i}/{args.runs} (model={args.model}, seed={run_seed}) ...")
         result, transcript = run_once(args.model, args.host, run_seed, args.max_turns, args.verbose,
                                        full_explore=args.full_explore, repair_model=args.repair_model,
-                                       no_reason=args.no_reason)
+                                       no_reason=args.no_reason, num_ctx=args.num_ctx,
+                                       req_timeout=args.request_timeout)
         summaries.append(result)
 
         log_path = os.path.join(args.log_dir, f"run_{run_i}_{int(time.time())}.json")

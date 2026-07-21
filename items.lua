@@ -56,29 +56,32 @@ Network handles are first-initial + last name.
 AYESHA RAZA   (araza)
   Principal Engineer. Emacs since her PhD and very online
   about it; runs the internal #balatro channel. Was passed
-  over for the Staff promotion that went to Arjun. Vocal
-  critic of "the AI hype crowd."
+  over for the Staff promotion that went to Arjun. No LSP,
+  no auto-correct, no syntax highlighting trad coder."
 
 WEI ZHAO   (wzhao)
-  Staff Engineer. Vim absolutist, currently #1 on the office
-  Balatro leaderboard. Had legitimate access to the Den
-  earlier to fix the AV rig for Trent's demo.
+  Staff Engineer. Uses Vim btw, currently #1 on the office
+  Balatro leaderboard (5.80e2000 on black deck). Had access
+  to the Den earlier to fix the AV rig for Trent's demo.
 
 PRIYA RAGHAVAN   (praghavan)
-  Senior Systems Engineer. Rust evangelist, loudly anti-Jess
-  ("AI-generated code is a war crime"). Deep into supplement
-  stacks; keeps a personal creatine-cycle repo.
+  Senior Systems Engineer. Rewrites to Rust, anti-Jess.
+  Deep into supplement stacks; keeps a personal
+  creatine-cycle repo.
 
 DANIEL LIN   (dlin)
-  Head of Infrastructure. VSCode, default settings. Quiet;
-  stays out of every editor and language fight. Standing
-  excuse for vanishing is "grinding a solo Balatro run."
+  Head of Infrastructure. Uses Cursor, Hasn't written a line
+  of code since GPT-4o. Quiet; stays out of every editor
+  and language fight. Reportedly "grinding a Balatro run
+  trying to beat Wei's record." at the time of the murder.
   Holds full admin over billing and provisioning (dlin-admin).
+
 ----------------------------------------------------------
 
 Victim: Arjun Mehta (amehta), VP of AI Research and the
-internal face of JessAI. Last seen heading to the Den at
-about 9:55 PM.]],
+internal face of JessAI. Ex-Emacs user. Python. Last
+seen heading to the Den at about 9:55 PM.]],
+
 	},
 
 	slack_general = {
@@ -86,26 +89,28 @@ about 9:55 PM.]],
 		popup   = "slack",
 		channel = "#general",
 		content = [[ayesha  9:41 PM
-  emacs has done modal editing for twenty years wei, sit down
+  @wei closed all my tickets, pushed to prod, wrote documentation and  booked a flight without ever leaving emacs
 wei  9:42 PM
-  modal editing is not a personality ayesha
+  Great operating system, I wonder when it'll get a good text editor.
+wei  9:42 PM
+  How's that pinky doing?
+wei  9:43 PM
+  You should consider evil-mode on Doom emacs, get a feel for how a good editor works.
 priya  9:47 PM
-  hot take for the launch: AI-generated code is a war crime
+  Guys im scared for the launch, AI-generated code is a war crime. No way the launch goes well
 priya  9:48 PM
   said that to arjun's face an hour ago and i stand by it
 wei  9:50 PM
   brb, trent needs the AV rig in the den fixed before the demo
 ayesha  9:58 PM
-  balatro bracket is running in the living room all night, get in here
+  @channel balatro bracket is running in the living room all night, get in here
 daniel  10:01 PM
-  can't, grinding a solo run, don't jinx it
+  can't, going for the office record, don't jinx it
 ayesha  10:03 PM
   does anyone know why the wine cellar smart lock keeps triggering
 wei  10:05 PM
-  ok the emacs/vim debate ends NOW. living room. everyone.
-ayesha  10:16 PM
-  daniel's been in the home office the whole party. has anyone
-  actually *seen* him or is he just balatro-ing alone again]],
+  ok the emacs/vim debate ends NOW. living room. @everyone.
+]],
 	},
 
 	-- ---------------- Home Office ----------------
@@ -113,15 +118,17 @@ ayesha  10:16 PM
 	draft_email = {
 		sprite  = "scroll",
 		popup   = "laptop",
-		content = [==[An unsent draft is open on the desktop, addressed to Trent:
+		content = [==[An unsent draft is open on the desktop:
 
-  Trent —
+  Subject: <no subject>
+  To: Trent
 
+  Hi,
   I've been going over the Q3 infra numbers and something is
   wrong. Compute utilization on the training cluster doesn't
   match the invoiced hours. I've traced about $310K to a vendor
   account that doesn't correspond to anything in our
-  [the draft is torn off here]]==],
+  [The rest of the message is corrupted]]==],
 	},
 
 	repo_log = {
@@ -150,7 +157,7 @@ ayesha  10:16 PM
 		popup   = "slack",
 		channel = "#eng-help",
 		content = [[ayesha  9:36 PM
-  stuck in vim on the prod box. how do i replace text without emacs
+  stuck in vim on the prod box. how do i find and replace? @priya
 priya  9:37 PM
   :s/old/new/ does the first match on a line, add g for all of them
   :%s/old/new/g for the whole file — same syntax as sed
@@ -168,12 +175,13 @@ priya  9:38 PM
   grab the signed Meridian paperwork off the server-room box? need it
   for the board packet
 trent  10:34 PM
-  keypad's the vault word FOXGLOVE (Dan's pick, naturally). usual way:
-  a=1 to z=26, then each letter mod 8. three digits — the repeated
+  You can find the code word on the sticky note in the office under the desk.
+  usual way:
+  a=1 z=26, then mod 8 each letter. the code is three digits — the repeated
   letter, then the ^ letter, then the $ one. that last digit, keep it
   if it's odd, otherwise minus one.
 trent  10:35 PM
-  don't paste the actual number in here]],
+  don't paste the actual number in here or I WILL fire you!]],
 	},
 
 	-- ---------------- The Den ----------------
@@ -197,7 +205,7 @@ Time of death: 10:05–10:20 PM.]],
 		content = [[Statements taken in the first hour:
 
 Ayesha Raza:
-  "Wei and I were screaming about editors in the Living Room
+  "Wei and I were fighting over editors in the Living Room
    from about 10:05 until Trent's toast. Half the party was
    watching. Ask literally anyone."
 
@@ -211,11 +219,10 @@ Priya Raghavan:
    Yes, I yelled at Arjun earlier. I did not touch him."
 
 Daniel Lin:
-  "I was in the home office grinding a Balatro run. Didn't want
+  "I was in the home office playing Balatro. Didn't want
    to jinx it, so I kept to myself. Didn't even hear the
    emacs/vim thing kick off."
-
-Only Daniel's account has no one to confirm it.]],
+]],
 	},
 
 	calendar_note = {
@@ -233,12 +240,11 @@ Only Daniel's account has no one to confirm it.]],
 	draft_email_continued = {
 		sprite  = "scroll",
 		popup   = "laptop",
-		content = [[The rest of the torn email, crumpled in the wastebasket:
+		content = [[The rest of corrupted email:
 
   ...doesn't correspond to anything in our approved vendor list.
-  The account is provisioned under `dlin-admin`. Before I take
-  this to you I want to hear it from Daniel directly — I could
-  be wrong about what it means.
+  The account is provisioned under `dlin-admin`. I'll ask Daniel
+  first, maybe he knows what this is.
 
   I've asked him to meet me at 10 in the Den.]],
 	},
@@ -250,8 +256,7 @@ Only Daniel's account has no one to confirm it.]],
 		content = [[The espresso bar in the sunroom.
 
 Two used cups sit in the drip tray, still faintly warm. Someone
-made coffee for two here this evening — despite how many of the
-statements insist everyone was off on their own.]],
+made coffee for two here this evening.]],
 	},
 
 	keycard = {
@@ -272,7 +277,7 @@ to a door that won't open.]],
         DANIEL LIN
         Infrastructure
 
-A single balled-up nitrile glove is wedged behind it.]],
+]],
 	},
 
 	cellar_access_log = {
@@ -310,7 +315,6 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 
         GZYH ZIV YVGGVI
 
-  with a hand-drawn A-Z mirror chart underneath
   (A<->Z, B<->Y, C<->X, ...).]],
 	},
 
@@ -319,7 +323,7 @@ Whoever came down here at 10:12 PM came in on Daniel Lin's badge.]],
 		popup   = "slack",
 		channel = "DM: wei zhao",
 		content = [[leo  9:44 PM
-  wei how do i find which file mentions someone without opening every one
+  wei how do i find which file mentions something without opening every one
 wei  9:45 PM
   grep -r <name>. searches every file, prints the hits with filenames
 leo  9:46 PM
@@ -359,8 +363,7 @@ This is the money Arjun found.]],
   Margin note: "therapeutic window is narrow — don't get
   creative with this one."
 
-Foxglove is the source of the cardiac glycoside that killed
-Arjun.]],
+]],
 	},
 
 	slack_final = {
@@ -368,7 +371,7 @@ Arjun.]],
 		popup   = "slack",
 		channel = "DM: daniel lin",
 		content = [[daniel  10:41 PM
-  in the home office all night fighting a deploy, didn't even hear the emacs/vim thing kick off lol]],
+  in the office playing balatro, didn't even hear the emacs/vim thing kick off lol]],
 	},
 
 	slack_draft = {
@@ -377,7 +380,7 @@ Arjun.]],
 		channel = "DM: daniel lin (draft)",
 		hidden  = true,
 		content = [[daniel  (draft — never sent)
-  in the home office all night fighting a deploy (stepped out ~5 min around 10 to grab something from the cellar), didn't even hear the emacs/vim thing kick off lol]],
+  in the office playing balatro. Did go out for 5-10 mins to grab something, didn't even hear the emacs/vim thing kick off lol]],
 	},
 
 	audit_stream = {
