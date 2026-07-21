@@ -81,6 +81,8 @@ Type `help` at any time for the current command list. The full command set:
 | `cp <file> <room>` | copy a file to a visited room |
 | `rm <file>` | destroy evidence — irreversible (`rm -f` skips the prompt) |
 | `chmod <mode> <target>` | set permissions on a room or file |
+| `sed 's/old/new/' <file>` | print the file with a substitution applied (`-i` edits in place, after `chmod +w`) |
+| `vim` / `nvim` / `vi` | open the notes editor (`help vim` for the keys) |
 | `echo <text>` | repeat text back |
 | `accuse <name>` | name the murderer (surname or full name) |
 | `help` | show the available commands |
@@ -90,6 +92,24 @@ Type `help` at any time for the current command list. The full command set:
 and `grep DIGITALIS` behave the same. Quote multi-word patterns:
 `grep "R.C." torn_letter.txt`. Filenames (as shown by `ls`) are
 case-sensitive, Unix-style.
+
+### Taking notes
+
+`vim` (or `nvim`, or `vi` — they all open the same scratch pad) opens a small
+modal editor beside the terminal, replacing the map. The terminal is frozen
+while it's open. Type `help vim` in game for the full list; the short version:
+
+- `i` / `a` / `o` / `s` — insert before / after the cursor, on a new line
+  below, or over the character under the cursor. **Esc** leaves insert mode.
+- `h j k l` (or the arrows) to move, `0` / `$` for start / end of line,
+  `x` to delete a character.
+- `:w` write, `:q` quit (refused if you have unwritten changes), `:q!`
+  quit and discard, `:wq` both. **Ctrl +/− /0** zooms the editor's text
+  independently of the terminal's.
+
+Notes are kept with the game: `exit save` stores them next to your save,
+`exit nosave` throws away everything written that session, and a new game
+starts with a blank pad.
 
 ### Controls
 
@@ -109,7 +129,8 @@ lets you keep playing; a correct one ends the case and shows your time and
 command count. Your personal best is tracked between runs, and `exit save`
 lets you resume a partial investigation later. Saves live in LÖVE's per-app
 save directory (`~/Library/Application Support/LOVE/terminal_mystery/` on
-macOS).
+macOS) — alongside `notes/notes.txt`, which is the scratch pad as plain text
+if you'd rather read it outside the game.
 
 ---
 
@@ -133,9 +154,10 @@ terminal_mystery/
 │   ├── items.lua       mv, cp, rm, chmod
 │   ├── meta.lua        help, echo, exit, accuse
 │   └── completion.lua  Tab-completion candidates
-├── render.lua        all drawing: terminal pane, map, status bar, overlays
+├── vim.lua           the in-game notes editor (buffer, modes, : commands)
+├── render.lua        all drawing: terminal pane, map, editor pane, overlays
 ├── save.lua          serialize / restore game state to the save directory
-├── test/             headless Lua test suite (world, navigation, items, completion)
+├── test/             headless Lua test suite (world, navigation, items, completion, vim)
 ├── server.js         static server with COOP/COEP headers for the web build
 ├── web-index.html    HTML template copied over love.js's default index
 ├── package.json      web build + Playwright test scripts

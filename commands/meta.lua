@@ -2,7 +2,49 @@
 
 local World = require("world")
 
-local function help(state, _)
+-- `help vim` (also `help nvim` / `help vi`). Keyed off the same three names the
+-- editor answers to, since a player who only knows one of them will type that.
+local VIM_HELP = {
+    "vim — the notes editor.",
+    "",
+    "It opens beside the terminal and takes the keyboard with it: the",
+    "terminal is frozen until you quit back out. There is only one scratch",
+    "pad, so vim, nvim and vi all open the same notes no matter what you",
+    "type after them.",
+    "",
+    "Getting text in:",
+    "  i                        insert before the cursor",
+    "  a                        insert after the cursor",
+    "  o                        open a line below and insert",
+    "  s                        replace the character under the cursor",
+    "  Esc                      leave insert mode",
+    "",
+    "Moving around (in normal mode — press Esc first):",
+    "  h j k l                  left, down, up, right (the arrows work too)",
+    "  0                        jump to the start of the line",
+    "  $                        jump to the end of the line",
+    "  x                        delete the character under the cursor",
+    "",
+    "Commands (type : in normal mode, then Enter):",
+    "  :w                       write the notes",
+    "  :q                       quit — refused if you have unwritten changes",
+    "  :q!                      quit and throw those changes away",
+    "  :wq                      write, then quit",
+    "",
+    "  ctrl +  /  ctrl -        make the text bigger / smaller",
+    "  ctrl 0                   back to the default size",
+    "",
+    "The size you pick lasts until you quit the game. Your notes are kept",
+    "with the game itself: `exit save` keeps them, `exit nosave` throws away",
+    "everything written this session.",
+}
+
+local function help(state, args)
+    local topic = args and args[1] and args[1]:lower()
+    if topic == "vim" or topic == "nvim" or topic == "vi" then
+        return table.concat(VIM_HELP, "\n")
+    end
+
     local lines = {
         "Available commands:",
         "  ls [-a]                  list the contents of this room (-a shows hidden)",
@@ -17,7 +59,8 @@ local function help(state, _)
         "  exit                     quit the game",
         "  help                     show this list",
         "  accuse <name>            name the murderer",
-        "  vim/nvim/vi              open a good editor to take notes"
+        "  vim/nvim/vi              open a good editor to take notes",
+        "                           (`help vim` for how to drive it)"
     }
     table.insert(lines, "  cat <file>               read a piece of evidence")
     if state.unlocked.grep then
