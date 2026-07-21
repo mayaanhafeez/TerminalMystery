@@ -54,6 +54,45 @@ On macOS, if the `love` CLI isn't on your `$PATH`:
 
 ---
 
+## System requirements
+
+This is a 2D terminal game: a handful of small sprites, some text, and one
+offscreen canvas. It is not demanding, and it isn't going to become demanding —
+the only art work still planned is replacing placeholder textures (per-room
+tile legends, four item icons, a few furniture pieces), all of which are small
+sprites in the same size class as the ones already shipping.
+
+|  | Minimum | Notes |
+| --- | --- | --- |
+| **CPU** | any x86-64 or arm64 from the last decade | single-threaded; measured at 11–17% of one core on an Apple Silicon Mac |
+| **RAM** | 512 MB free | measured **~175 MB** resident while running |
+| **GPU** | OpenGL 2.1 / OpenGL ES 2.0 | LÖVE 11's floor; any integrated graphics qualifies |
+| **VRAM** | ~32 MB | **16.2 MB** of decoded textures today; the planned art lands well under 25 MB |
+| **Disk** | ~30 MB installed | the game itself is ~3.5 MB (includes ~1 MB of SFX/ambience); the bundled LÖVE runtime is the rest |
+| **Display** | 800×500 or larger | window is 1280×800 by default and freely resizable |
+| **Audio** | optional | short SFX and per-room ambience loops (no music); `mute` / `volume <0-100>` turn it off or down |
+
+Per platform:
+
+- **macOS 10.11 El Capitan or newer**, Intel or Apple Silicon (the bundled LÖVE
+  is a universal binary). Note that LÖVE 11.5 ships with LuaJIT's JIT disabled
+  on Apple Silicon — upstream's decision, since JIT memory there is unreliable —
+  so the Lua runs interpreted on M-series Macs. It's still comfortably fast for
+  a game this size.
+- **Windows 7 or newer, 64-bit.**
+- **Linux**, glibc-based x86-64, with OpenGL 2.1. The AppImage build wants FUSE
+  2; without it, run it with `--appimage-extract-and-run`.
+- **Browser**: anything with WebAssembly and `SharedArrayBuffer`. The host must
+  send the COOP/COEP headers (`vercel.json` and `server.js` both do) or the
+  threaded WASM build won't start.
+
+One caveat on memory: **`assets/background.png` (2700×1350) alone accounts for
+14.2 MB of the 16.2 MB of texture memory** — the title screen's backdrop costs
+more than every sprite, tile and font in the game combined. If the numbers above
+ever need to come down, that single file is the whole story.
+
+---
+
 ## How to play
 
 You start at the title screen: **Play** → **New Game** (or **Continue From
