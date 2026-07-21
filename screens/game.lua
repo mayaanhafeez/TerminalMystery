@@ -14,6 +14,9 @@ local cursor_timer = 0
 -- Live notes-editor state (vim.lua) while it's open, nil otherwise. Non-nil
 -- means the terminal is frozen: every key goes to the editor instead.
 local vim = nil
+-- One-shot guard for the editor's ctrl +/-/0 zoom: those keys also fire a
+-- textinput that insert mode would otherwise type into the buffer.
+local vim_swallow_text = false
 
 -- CRT switch animation. `mode` is "on" (power-on when the game screen is
 -- entered) or "off" (power-off when exiting back to the title). `t` counts up to
@@ -305,7 +308,8 @@ end
 -- terminal-only mode), so each re-runs the layout and rewraps the terminal.
 function M.open_vim()
 	clear_tab_state()
-	vim = Vim.open()
+	vim = Vim.open(state)
+	vim_swallow_text = false
 	Render.vim_open = true
 	Render.resize(love.graphics.getDimensions())
 	rewrap_terminal()
@@ -406,7 +410,11 @@ function M.text_input(t)
 	-- Editor open: it swallows all typing, including the keys that are commands
 	-- in normal mode (see vim.lua).
 	if vim then
-		Vim.text_input(vim, t)
+		if vim_swallow_text then
+			vim_swallow_text = false
+		else
+			Vim.text_input(vim, t)
+		end
 		return
 	end
 	if exit_prompt.active then
@@ -441,7 +449,22 @@ function M.keypressed(key)
 		return
 	end
 	if vim then
-		Vim.keypressed(vim, key)
+		-- Editor text zoom, independent of the terminal's. Lasts the whole
+		-- session (close and reopen keeps the size) but resets on new game /
+		-- continue, since Render.vim_font_scale is reset by start_new /
+		-- start_from_save.
+		if ctrl_or_cmd_down() and (key == "=" or key == "kp+") then
+			Render.set_vim_font_scale(Render.vim_font_scale + 0.1)
+			vim_swallow_text = true
+		elseif ctrl_or_cmd_down() and (key == "-" or key == "kp-") then
+			Render.set_vim_font_scale(Render.vim_font_scale - 0.1)
+			vim_swallow_text = true
+		elseif ctrl_or_cmd_down() and key == "0" then
+			Render.set_vim_font_scale(1)
+			vim_swallow_text = true
+		else
+			Vim.keypressed(vim, key)
+		end
 		return
 	end
 	if exit_prompt.active then
@@ -640,6 +663,11 @@ function M.start_new(terminal_only)
 	state = World.new_state()
 	state.terminal_only = terminal_only or false
 	Render.terminal_only = state.terminal_only
+	-- A new run starts with an empty scratch pad (World.new_state) and the
+	-- editor closed at its default text size.
+	vim = nil
+	Render.vim_open = false
+	Render.set_vim_font_scale(1)
 	Render.resize(love.graphics.getDimensions())
 	term = {
 		messages = {},
@@ -672,8 +700,13 @@ function M.start_from_save(save_data)
   state.command_count = save_data.command_count
   state.terminal_only = save_data.terminal_only or false
   state.start_time = love.timer.getTime() - state.elapsed
+  -- Notes ride alongside the save in their own file, not inside save_data.txt.
+  state.notes = Vim.load_notes()
 
   Render.terminal_only = state.terminal_only
+  vim = nil
+  Render.vim_open = false
+  Render.set_vim_font_scale(1)
   Render.resize(love.graphics.getDimensions())
 
   World.restore_rooms(save_data.rooms)

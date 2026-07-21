@@ -135,6 +135,8 @@ M.font_mono_big = nil -- larger monospace for the boot screen / ASCII banner
 M.font_handwriting = nil -- loaded from handwriting.ttf if present
 M.font_handwriting_large = nil -- large variant for titles
 M.font_scale = 1 -- multiplier on M.font_term; adjusted via M.set_font_scale
+M.font_vim = nil -- the notes editor's own font (vim.lua pane)
+M.vim_font_scale = 1 -- multiplier on M.font_vim; adjusted via M.set_vim_font_scale
 M.popup_close_rect = nil -- set each frame popup is drawn; nil otherwise
 M.popup_prev_rect = nil -- previous-page hit rect (paginated popups); nil otherwise
 M.popup_next_rect = nil -- next-page hit rect (paginated popups); nil otherwise
@@ -430,6 +432,32 @@ local function load_fixed_fonts()
 	end
 end
 
+-- The editor pane's own text size, independent of the terminal's zoom. Nothing
+-- about the layout depends on it (the pane wraps to whatever fits), so unlike
+-- set_font_scale this needs no resize or rewrap. screens/game.lua resets it to
+-- 1 when a run starts, so it lasts a session but not across a quit.
+local function load_vim_font()
+	local size = math.max(6, math.floor(16 * M.vim_font_scale + 0.5))
+	if love.filesystem.getInfo("font_mono.ttf") then
+		M.font_vim = love.graphics.newFont("font_mono.ttf", size)
+	elseif pixel_font_path() then
+		M.font_vim = love.graphics.newFont(pixel_font_path(), size)
+		M.font_vim:setFilter("nearest", "nearest")
+	else
+		M.font_vim = love.graphics.newFont(size)
+	end
+end
+
+function M.set_vim_font_scale(s)
+	local clamped = math.max(0.6, math.min(2.5, s))
+	if clamped == M.vim_font_scale and M.font_vim then
+		return false
+	end
+	M.vim_font_scale = clamped
+	load_vim_font()
+	return true
+end
+
 function M.set_font_scale(s)
 	local clamped = math.max(0.6, math.min(2.5, s))
 	if clamped == M.font_scale then
@@ -446,6 +474,7 @@ end
 function M.load()
 	load_fixed_fonts()
 	load_terminal_font()
+	load_vim_font()
 	love.graphics.setFont(M.font)
 
 	-- Item icon sprites (Kenney tiles + direct assets)
@@ -814,7 +843,10 @@ end
 
 -- ---------- panels ----------
 
-local function draw_terminal(state, term)
+-- `frozen` (the notes editor has focus): the prompt still shows whatever was
+-- half-typed, but the blinking block cursor is hidden — only one pane owns the
+-- keyboard at a time, and the editor draws its own.
+local function draw_terminal(state, term, frozen)
 	love.graphics.setColor(C.term_bg)
 	love.graphics.rectangle("fill", 0, 0, M.TERM_W, M.H - M.STATUS_H)
 
@@ -851,7 +883,7 @@ local function draw_terminal(state, term)
 	love.graphics.setColor(C.term_user)
 	local px = M.PAD + M.font_term:getWidth(prompt)
 	love.graphics.print(term.input, px, prompt_y)
-	if term.cursor_visible then
+	if term.cursor_visible and not frozen then
 		-- Block cursor at term.cursor_pos (a byte offset). When it sits over a
 		-- character, redraw that glyph in the background colour so it stays legible.
 		local pos = term.cursor_pos or #term.input
@@ -1275,6 +1307,8 @@ local function draw_status_bar(state)
 	end
 end
 
+local VIM_DIVIDER_W = 2 -- rule drawn down the terminal/editor seam
+
 -- The notes editor pane (see vim.lua), drawn into M.vim_x/y/w/h. Line numbers
 -- in a gutter, buffer rows hard-wrapped at the pane width (no horizontal
 -- scroll, continuation rows get a blank gutter), block cursor, and a status
@@ -1285,12 +1319,16 @@ end
 -- cursor's screen position is pure arithmetic — no per-substring measuring.
 local function draw_vim_view(vim)
 	local x, y, w, h = M.vim_x, M.vim_y, M.vim_w, M.vim_h
-	local font = M.font_term
+	local font = M.font_vim or M.font_term
 	local line_h = font:getHeight() * 1.25
 	local char_w = font:getWidth("M")
 
 	love.graphics.setColor(C.term_bg)
 	love.graphics.rectangle("fill", x, y, w, h)
+	-- Rule down the seam so the split reads as two panes rather than one wide
+	-- terminal. In terminal-only mode this is the only thing separating them.
+	love.graphics.setColor(C.map_border)
+	love.graphics.rectangle("fill", x, y, VIM_DIVIDER_W, h)
 	love.graphics.setFont(font)
 
 	local gutter = char_w * 4 -- "999 "
@@ -1957,7 +1995,7 @@ function M.draw(state, term, best, vim)
 	-- Now draw at native window resolution.
 	love.graphics.setColor(C.bg)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
-	draw_terminal(state, term)
+	draw_terminal(state, term, vim ~= nil)
 
 	-- The notes editor replaces the room view outright; in terminal-only mode it
 	-- takes the half of the window the terminal just gave up.

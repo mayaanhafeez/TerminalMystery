@@ -158,6 +158,14 @@ function Session:run(input)
         return "", snapshot(self.state, true)
     end
 
+    -- The notes editor is a screen, not a command: its handler hands off to the
+    -- GameScreen global (like `exit` does) and there is no terminal to draw it
+    -- into here. Intercepted rather than implemented — an LLM player keeps its
+    -- notes in its own context, and a fuzzer typing `vim` shouldn't crash.
+    if cmd == "vim" or cmd == "nvim" or cmd == "vi" then
+        return "No editor available in headless mode.", snapshot(self.state, false)
+    end
+
     -- Debug/QA-only query, not part of the in-game `help` vocabulary: reports
     -- completionist progress against the pristine snapshot. Doesn't touch
     -- command_count/elapsed since it isn't a real investigative move.

@@ -22,10 +22,21 @@ local NOTES_PATH = NOTES_DIR .. "/" .. NOTES_NAME
 
 M.NAME = NOTES_NAME -- shown in the editor's status line by render.lua
 
--- ---------- file I/O ----------
--- Plain text, newline-joined, written to LÖVE's save dir. Deliberately separate
--- from save_data.txt (full game state) and scores.lua (personal best): notes
--- survive independently of whether the run was saved.
+-- ---------- persistence ----------
+-- The scratch pad is tied to the run, not to the process. It lives in
+-- state.notes for the session (so a new game starts empty), and only reaches
+-- disk when the game itself is saved — which is why `:w` commits to
+-- state.notes rather than writing the file: `exit nosave` must discard the
+-- session's notes along with everything else it discards.
+--
+--   new game      World.new_state() -> notes = { "" }
+--   :w            buffer -> state.notes            (session only)
+--   exit save     state.notes -> notes.txt         (save.lua)
+--   exit nosave   nothing written; notes.txt keeps the last saved run's text
+--   continue      notes.txt -> state.notes         (screens/game.lua)
+--
+-- notes.txt itself is plain newline-joined text in LÖVE's save dir, readable
+-- as-is outside the game.
 
 -- Read NOTES_PATH into a list of lines. Missing/empty file -> { "" }.
 local function read_notes()
@@ -49,10 +60,30 @@ local function read_notes()
 	return lines
 end
 
--- Write `lines` back to NOTES_PATH verbatim. Returns ok, err.
-local function write_notes(lines)
+local function copy_lines(lines)
+	local out = {}
+	for i, line in ipairs(lines) do
+		out[i] = line
+	end
+	if #out == 0 then
+		out[1] = ""
+	end
+	return out
+end
+
+-- Called by save.lua when the run is saved: state.notes -> notes.txt.
+function M.save_notes(state)
 	love.filesystem.createDirectory(NOTES_DIR)
-	return love.filesystem.write(NOTES_PATH, table.concat(lines, "\n") .. "\n")
+	local lines = state.notes or { "" }
+	local ok, err = love.filesystem.write(NOTES_PATH, table.concat(lines, "\n") .. "\n")
+	if not ok then
+		print(err)
+	end
+end
+
+-- Called by screens/game.lua when a saved run is continued: notes.txt -> lines.
+function M.load_notes()
+	return read_notes()
 end
 
 -- ---------- buffer helpers ----------
@@ -111,15 +142,12 @@ end
 
 -- ---------- : command line ----------
 
--- Write the buffer and set the `"notes.txt" 3L written` status message.
+-- Commit the buffer to the session (state.notes). It only reaches notes.txt if
+-- the run is later saved — see the persistence note at the top.
 local function save(vim)
-	local ok, err = write_notes(vim.lines)
-	if ok then
-		vim.dirty = false
-		vim.msg = string.format('"%s" %dL written', NOTES_NAME, #vim.lines)
-	else
-		vim.msg = "E212: Can't open file for writing (" .. tostring(err) .. ")"
-	end
+	vim.state.notes = copy_lines(vim.lines)
+	vim.dirty = false
+	vim.msg = string.format('"%s" %dL written', NOTES_NAME, #vim.lines)
 end
 
 -- Tear the editor down. Same shape as meta.lua's `exit`: call straight back
@@ -203,10 +231,12 @@ end
 
 -- ---------- public ----------
 
--- Open the scratch pad and return a fresh vim state.
-function M.open()
+-- Open the scratch pad over the run's notes and return a fresh vim state. The
+-- buffer is a copy: `:q!` discards it, `:w` copies it back into state.notes.
+function M.open(state)
 	return {
-		lines = read_notes() or { "" },
+		state = state, -- the run the scratch pad belongs to
+		lines = copy_lines(state.notes or { "" }),
 		line = 1, -- cursor line, 1-based
 		col = 0, -- chars before the cursor on that line
 		mode = "normal", -- "normal" | "insert" | "command"

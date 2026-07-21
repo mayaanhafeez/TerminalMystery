@@ -1,4 +1,5 @@
 local world = require("world")
+local vim = require("vim")
 
 local save_template = {
   current_room = true,
@@ -87,6 +88,11 @@ function M.save_state(state, filename)
     print(message)
   end
   remove_world_items(state)
+  -- The vim scratch pad rides along with the save, but in its own plain-text
+  -- file rather than the serialized blob (it's a line array, and the
+  -- serializer only round-trips string keys). Saving the run is the only thing
+  -- that commits notes to disk, so `exit nosave` drops them.
+  vim.save_notes(state)
 end
 
 function M.load_state(filename)

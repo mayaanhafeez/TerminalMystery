@@ -929,6 +929,9 @@ function M.new_state()
       vi = true,
 		},
 		destroyed = {},
+		-- The vim scratch pad (vim.lua), one entry per line. Session-scoped: a
+		-- new game starts with an empty pad, `continue` reloads notes.txt.
+		notes = { "" },
 		start_time = nil,
 		elapsed = 0,
 		command_count = 0,

@@ -11,6 +11,9 @@ love = {
         read    = function(path) return fake_store[path] end,
         getInfo = function(path) return fake_store[path] and {} or nil end,
         remove  = function(path) fake_store[path] = nil; return true end,
+        -- save_state also writes the vim scratch pad (vim.lua) alongside the
+        -- save file; the in-memory store is flat, so this is a no-op.
+        createDirectory = function() return true end,
     }
 }
 
