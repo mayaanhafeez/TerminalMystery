@@ -35,17 +35,21 @@ T.test("g replaces every occurrence on a line", function()
     T.eq(all, "X bbb X")
 end)
 
--- The slack_draft → slack_final intro puzzle: deleting the literal parenthetical
--- reproduces the sent message body.
+-- The slack_draft → slack_final intro puzzle: cutting the cellar admission out
+-- of the draft reproduces the message Daniel actually sent. The expected body
+-- is read back from slack_final.txt rather than hardcoded, so rewording the
+-- evidence only ever breaks this test if the two files stop lining up.
 T.test("deleting the cellar clause reproduces slack_final's body", function()
     local s = make_state("server_room")
     local out = Evidence.sed(s, {
-        "s/ (stepped out ~5 min around 10 to grab something from the cellar)//",
+        "s/. Did go to the cellar for 5-10 mins to grab something,/,/",
         ".slack_draft.txt",
     })
-    local final_body = "  in the home office all night fighting a deploy, "
-        .. "didn't even hear the emacs/vim thing kick off lol"
-    T.ok(out:find(final_body, 1, true), "expected the trimmed message body: " .. out)
+    local final = World.rooms.server_room.items["slack_final.txt"].content
+    local final_body = final:match("\n(.+)$")
+    T.ok(final_body, "slack_final.txt should have a message body under its header")
+    T.ok(out:find(final_body, 1, true),
+        "expected the trimmed message body:\n  got:      " .. out .. "\n  expected: " .. final_body)
 end)
 
 -- -----------------------------------------------------------------------
