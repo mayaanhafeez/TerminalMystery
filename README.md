@@ -5,10 +5,11 @@ laid out as a virtual filesystem — rooms are directories, evidence is files
 — and you solve the case by walking around, reading clues, and using
 `grep` to draw lines between them.
 
-It is the autumn of 1923. Lord Edmund Ashworth lies dead in his Study at
-Ashworth Manor. The constabulary is two hours away; you are the nearest
-investigator, and the killer is still in the house. Four guests, six rooms,
-one murder — solvable in a sitting.
+Strictly.ai just closed its Series C. At the launch party in the CEO's
+house, Arjun Mehta — VP of AI Research — is found dead in the Den, an empty
+bottle of kombucha beside him. Legal wants it quiet until you've had a look.
+Four engineers were in range during the window, and one of them is still
+here. Eight rooms, one murder — solvable in a sitting.
 
 Built in pure Lua for [LÖVE](https://love2d.org/) 11.x, with a browser
 build via [love.js](https://github.com/Davidobot/love.js). No external Lua
@@ -56,21 +57,21 @@ On macOS, if the `love` CLI isn't on your `$PATH`:
 ## How to play
 
 You start at the title screen: **Play** → **New Game** (or **Continue From
-Save** if you have a saved investigation). The left panel is your terminal;
-the right panel is a live map of the house. Type commands into the prompt.
+Save** if you have a saved investigation), then pick a display mode —
+**Full view** (terminal on the left, a live view of the room on the right)
+or **Terminal only** (just the shell, full width). Type commands into the
+prompt.
 
-Some commands are available immediately; two unlock as you investigate:
-
-- `cat <file>` unlocks once you've stepped outside the Foyer at least once.
-- `grep` unlocks once you've read two pieces of evidence.
+Nearly everything is available immediately. `grep` is the exception: it
+unlocks once you've read two pieces of evidence.
 
 Type `help` at any time for the current command list. The full command set:
 
 | command | what it does |
 | ------- | ------------ |
 | `ls [-a]` | list the current room (`-a` shows hidden files) |
-| `cd <room>` | move to an adjacent room (`cd` alone returns to the Foyer) |
-| `cd ..` / `cd ~` | go up to the Foyer; `cd ../<room>` goes up then in |
+| `cd <room>` | move to an adjacent room (`cd` alone returns to the Entrance Hall) |
+| `cd ..` / `cd ~` | go up to the Entrance Hall; `cd ../<room>` goes up then in |
 | `cd -` | return to the previous room |
 | `pwd` / `cwd` | print the current / previous room path |
 | `cat <file>` | read a piece of evidence |
@@ -88,9 +89,9 @@ Type `help` at any time for the current command list. The full command set:
 | `help` | show the available commands |
 | `exit` | leave to the menu (`exit save` to keep progress, `exit nosave` to abandon) |
 
-`grep` matching is **plain text and case-insensitive**, so `grep digitalis`
-and `grep DIGITALIS` behave the same. Quote multi-word patterns:
-`grep "R.C." torn_letter.txt`. Filenames (as shown by `ls`) are
+`grep` matching is **plain text and case-insensitive**, so `grep kombucha`
+and `grep KOMBUCHA` behave the same. Quote multi-word patterns:
+`grep "home office" party_statements.txt`. Filenames (as shown by `ls`) are
 case-sensitive, Unix-style.
 
 ### Taking notes
@@ -142,8 +143,10 @@ terminal_mystery/
 ├── conf.lua          window / runtime config (1280×800, resizable)
 ├── screen.lua        tiny screen-stack manager (register / set / dispatch)
 ├── screens/
+│   ├── boot.lua      fake boot sequence + ASCII banner, hands off to the title
 │   ├── play.lua      title screen (Play / Exit)
 │   ├── play_menu.lua New Game / Continue From Save / Back
+│   ├── mode_select.lua  Full view / Terminal only picker
 │   └── game.lua      the terminal UI: input, history, tab-complete, scroll
 ├── world.lua         rooms, suspects, evidence, mutable game state (no rendering)
 ├── items.lua         evidence/item definitions
@@ -157,6 +160,7 @@ terminal_mystery/
 ├── vim.lua           the in-game notes editor (buffer, modes, : commands)
 ├── render.lua        all drawing: terminal pane, map, editor pane, overlays
 ├── save.lua          serialize / restore game state to the save directory
+├── headless/         run the game without LÖVE (engine, REPL, fuzzer, LLM player)
 ├── test/             headless Lua test suite (world, navigation, items, completion, vim)
 ├── server.js         static server with COOP/COEP headers for the web build
 ├── web-index.html    HTML template copied over love.js's default index
@@ -180,12 +184,19 @@ A browser smoke test runs via Playwright:
 npm test
 ```
 
-### A monospace font
+### Fonts
 
-The game ships with `handwriting.ttf` and loads it automatically. To use a
-different face, drop your own `.ttf` in and point the loader at it —
-[Fira Code](https://github.com/tonsky/FiraCode) or
-[JetBrains Mono](https://www.jetbrains.com/lp/mono/) both work well.
+Three faces ship in the repo root and load automatically (`render.lua`):
+
+- `font_mono.ttf` — [JetBrains Mono](https://www.jetbrains.com/lp/mono/): the
+  terminal, the notes editor, menus, and the "computer screen" popups (laptop
+  logs, Slack), where columns need to line up.
+- `monocraft.ttf` — the pixel face, used only in the room view: its name
+  banner, item labels and minimap.
+- `handwriting.ttf` — handwritten evidence in scroll popups.
+
+Drop a `font.ttf` in the repo root to override the pixel face; it's
+gitignored, so it stays local to your checkout.
 
 ---
 
@@ -213,8 +224,11 @@ committed; build it in CI or before deploying.
 
 ## Spoiler-free hints
 
-- The first thing to do is `ls`, then read `welcome.txt` once `cat` unlocks
-  (step into another room first).
-- The torn letter in the Library names a suspect by their initials.
-- `grep -r` is the speedrun tool. One well-chosen pattern can collapse the
-  suspect list in a single command.
+- Start with `ls`, then `cat welcome.txt`. Read two files and `grep` opens up.
+- Not everything is listed. `ls -a` shows the dotfiles, and there are several.
+- `grep -r <word>` searches every room you've been in. One well-chosen word
+  can collapse the suspect list in a single command.
+- Two rooms don't open by walking into them: one wants something carried to
+  it, the other wants a code you have to work out. Both tools are in `help`.
+- Keep names, timestamps and chat handles straight in `vim` — this case turns
+  on who was where, and when.
