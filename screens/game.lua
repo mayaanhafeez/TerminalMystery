@@ -4,11 +4,16 @@ local Commands = require("commands")
 local Render = require("render")
 local Completion = require("commands.completion")
 local Screen = require("screen")
+local Vim = require("vim")
 
 local state
 local term
 local best
 local cursor_timer = 0
+
+-- Live notes-editor state (vim.lua) while it's open, nil otherwise. Non-nil
+-- means the terminal is frozen: every key goes to the editor instead.
+local vim = nil
 
 -- CRT switch animation. `mode` is "on" (power-on when the game screen is
 -- entered) or "off" (power-off when exiting back to the title). `t` counts up to
@@ -295,6 +300,25 @@ function M.request_exit_to_play()
 	crt.t = 0
 end
 
+-- Called by the `vim` / `nvim` / `vi` commands. Opening and closing both change
+-- the layout (the editor takes the room panel, or half the window in
+-- terminal-only mode), so each re-runs the layout and rewraps the terminal.
+function M.open_vim()
+	clear_tab_state()
+	vim = Vim.open()
+	Render.vim_open = true
+	Render.resize(love.graphics.getDimensions())
+	rewrap_terminal()
+end
+
+-- Called by vim.lua's :q / :wq.
+function M.close_vim()
+	vim = nil
+	Render.vim_open = false
+	Render.resize(love.graphics.getDimensions())
+	rewrap_terminal()
+end
+
 -- Called by the bare `exit` command: freeze input and show the save prompt.
 function M.begin_exit_prompt()
 	clear_tab_state()
@@ -359,10 +383,10 @@ function M.draw()
 		local frac = math.min(1, crt.t / crt.duration)
 		local progress = (crt.mode == "off") and (1 - frac) or frac
 		Render.draw_crt_power_on(progress, function()
-			Render.draw(state, term, best)
+			Render.draw(state, term, best, vim)
 		end)
 	else
-		Render.draw(state, term, best)
+		Render.draw(state, term, best, vim)
 	end
 end
 
@@ -377,6 +401,12 @@ function M.text_input(t)
 	end
 	if intro.active then
 		finish_intro()
+		return
+	end
+	-- Editor open: it swallows all typing, including the keys that are commands
+	-- in normal mode (see vim.lua).
+	if vim then
+		Vim.text_input(vim, t)
 		return
 	end
 	if exit_prompt.active then
@@ -408,6 +438,10 @@ function M.keypressed(key)
 	if intro.active then
 		finish_intro()
 		crt_swallow_text = true
+		return
+	end
+	if vim then
+		Vim.keypressed(vim, key)
 		return
 	end
 	if exit_prompt.active then

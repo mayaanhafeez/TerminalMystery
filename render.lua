@@ -4,7 +4,7 @@
 local World = require("world")
 local utf8 = require("utf8")
 local Banner = require("banner")
-
+local Vim = require("vim")
 local M = {}
 
 -- The room view (right panel) is drawn at a fixed virtual resolution into an
@@ -40,18 +40,27 @@ M.room_h = 780
 -- afterwards; the game screen sets it before the first resize/rewrap.
 M.terminal_only = false
 
+-- True while the notes editor is open. It takes over the room panel in normal
+-- mode; in terminal-only mode there is no room panel, so the window splits in
+-- half instead. The game screen toggles this, then re-runs resize + rewraps.
+M.vim_open = false
+M.vim_x, M.vim_y, M.vim_w, M.vim_h = 0, 0, 0, 0
+
 function M.resize(w, h)
 	M.W = w
 	M.H = h
-	-- Terminal-only mode: no room panel, terminal spans the full width.
+	-- Terminal-only mode: no room panel, terminal spans the full width — unless
+	-- vim is open, which splits the window down the middle.
 	if M.terminal_only then
 		M.room_w = 0
 		M.room_h = math.max(1, h - M.STATUS_H)
-		M.TERM_W = w
+		M.TERM_W = M.vim_open and math.floor(w / 2) or w
 		M.MAP_X = w
 		M.MAP_W = 0
 		M.room_x = w
 		M.room_y = 0
+		M.vim_x, M.vim_y = M.TERM_W, 0
+		M.vim_w, M.vim_h = w - M.TERM_W, math.max(1, h - M.STATUS_H)
 		return
 	end
 	local avail_h = math.max(1, h - M.STATUS_H)
@@ -70,6 +79,10 @@ function M.resize(w, h)
 	M.MAP_W = room_w
 	M.room_x = M.TERM_W
 	M.room_y = 0
+	-- vim takes the room panel's slot verbatim; the room view isn't drawn at all
+	-- while it's open.
+	M.vim_x, M.vim_y = M.room_x, M.room_y
+	M.vim_w, M.vim_h = M.room_w, M.room_h
 end
 
 -- Palette
@@ -1262,8 +1275,106 @@ local function draw_status_bar(state)
 	end
 end
 
-local function draw_vim_view()
+-- The notes editor pane (see vim.lua), drawn into M.vim_x/y/w/h. Line numbers
+-- in a gutter, buffer rows hard-wrapped at the pane width (no horizontal
+-- scroll, continuation rows get a blank gutter), block cursor, and a status
+-- line along the bottom showing the mode / vim.msg / the `:` command line.
+-- Owns vim.scroll: it keeps the cursor row visible.
+--
+-- The terminal font is monospaced, so every column is char_w wide and the
+-- cursor's screen position is pure arithmetic — no per-substring measuring.
+local function draw_vim_view(vim)
+	local x, y, w, h = M.vim_x, M.vim_y, M.vim_w, M.vim_h
+	local font = M.font_term
+	local line_h = font:getHeight() * 1.25
+	local char_w = font:getWidth("M")
 
+	love.graphics.setColor(C.term_bg)
+	love.graphics.rectangle("fill", x, y, w, h)
+	love.graphics.setFont(font)
+
+	local gutter = char_w * 4 -- "999 "
+	local text_x = x + M.PAD + gutter
+	local cols = math.max(1, math.floor((w - 2 * M.PAD - gutter) / char_w))
+	local top = y + M.PAD
+	local status_y = y + h - M.PAD - line_h
+	local rows = math.max(1, math.floor((status_y - top) / line_h))
+
+	-- Flatten the buffer into display rows. A buffer line always occupies
+	-- floor(#line / cols) + 1 rows, so a line that exactly fills the width gets
+	-- a trailing empty row — that's where the cursor sits when it's at the end
+	-- of such a line. Only the first row of a line carries its number.
+	local display = {}
+	local first_row = {}
+	for i, line in ipairs(vim.lines) do
+		first_row[i] = #display + 1
+		for c = 0, math.floor(#line / cols) do
+			table.insert(display, {
+				text = line:sub(c * cols + 1, (c + 1) * cols),
+				num = (c == 0) and i or nil,
+			})
+		end
+	end
+
+	-- Scroll follows the cursor's display row.
+	local cursor_row = first_row[vim.line] + math.floor(vim.col / cols)
+	if cursor_row <= vim.scroll then
+		vim.scroll = cursor_row - 1
+	elseif cursor_row > vim.scroll + rows then
+		vim.scroll = cursor_row - rows
+	end
+	vim.scroll = math.max(0, math.min(vim.scroll, math.max(0, #display - 1)))
+
+	local row_y = top
+	for r = vim.scroll + 1, vim.scroll + rows do
+		local row = display[r]
+		if row then
+			if row.num then
+				love.graphics.setColor(C.term_dim)
+				love.graphics.print(string.format("%3d", row.num), x + M.PAD, row_y)
+			end
+			love.graphics.setColor(C.term_text)
+			love.graphics.print(row.text, text_x, row_y)
+			if r == cursor_row then
+				-- Block cursor; the glyph under it is redrawn in the background
+				-- colour so it stays legible.
+				local ccol = vim.col % cols
+				local cx = text_x + ccol * char_w
+				local glyph = row.text:sub(ccol + 1, ccol + 1)
+				love.graphics.setColor(C.term_user)
+				love.graphics.rectangle("fill", cx, row_y, char_w, font:getHeight())
+				if glyph ~= "" then
+					love.graphics.setColor(C.term_bg)
+					love.graphics.print(glyph, cx, row_y)
+				end
+			end
+		else
+			-- past the end of the buffer
+			love.graphics.setColor(C.term_dim)
+			love.graphics.print("~", x + M.PAD, row_y)
+		end
+		row_y = row_y + line_h
+	end
+
+	-- Status line: the `:` prompt while a command is being typed, otherwise the
+	-- last message, otherwise the mode + cursor position.
+	if vim.mode == "command" then
+		love.graphics.setColor(C.term_user)
+		local prompt = ":" .. vim.cmd
+		love.graphics.print(prompt, x + M.PAD, status_y)
+		love.graphics.rectangle("fill", x + M.PAD + #prompt * char_w, status_y, char_w, font:getHeight())
+	else
+		local status
+		if vim.msg ~= "" then
+			status = vim.msg
+		elseif vim.mode == "insert" then
+			status = "-- INSERT --"
+		else
+			status = string.format('"%s"%s  %d,%d', Vim.NAME, vim.dirty and " [+]" or "", vim.line, vim.col + 1)
+		end
+		love.graphics.setColor(C.system)
+		love.graphics.print(status, x + M.PAD, status_y)
+	end
 end
 
 local function draw_win_screen(state, best)
@@ -1831,12 +1942,12 @@ local function draw_room_border(x, y, w, h)
 	end
 end
 
-function M.draw(state, term, best)
+function M.draw(state, term, best, vim)
 	-- Render the room view into its own virtual-resolution canvas first.
 	-- Restore to whatever canvas was active before (usually the screen, but the
 	-- CRT intro captures this whole frame into M.crt_canvas), not forced to nil.
 	local prev_canvas = love.graphics.getCanvas()
-	if not M.terminal_only then
+	if not M.terminal_only and not vim then
 		love.graphics.setCanvas(M.room_canvas)
 		love.graphics.clear()
 		draw_room_view(state)
@@ -1848,9 +1959,15 @@ function M.draw(state, term, best)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)
 	draw_terminal(state, term)
 
+	-- The notes editor replaces the room view outright; in terminal-only mode it
+	-- takes the half of the window the terminal just gave up.
+	if vim then
+		draw_vim_view(vim)
+	end
+
 	-- Room view, inset to leave room for a pixel-art frame around it. Skipped
-	-- entirely in terminal-only mode.
-	if not M.terminal_only then
+	-- entirely in terminal-only mode, and while vim has the panel.
+	if not M.terminal_only and not vim then
 		local B = ROOM_BORDER
 		love.graphics.setColor(1, 1, 1)
 		love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0,

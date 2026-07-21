@@ -49,16 +49,20 @@ local function echo(_, args)
     return table.concat(args, " ")
 end
 
+-- Open the notes scratch pad. There is only ever the one file, so any arguments
+-- are ignored. Like `exit`, this can't draw anything itself — it just tells the
+-- game screen to open the editor (which freezes the terminal until :q).
 local function vim(_, _)
-  --actual vim function
+  GameScreen.open_vim()
+  return ""
 end
 
-local function nvim(_, _)
-  vim(_,_)
+local function nvim(state, args)
+  return vim(state, args)
 end
 
-local function vi(_, _)
-  vim(_,_)
+local function vi(state, args)
+  return vim(state, args)
 end
 
 local function emacs(_,_)
