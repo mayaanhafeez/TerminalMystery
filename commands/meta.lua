@@ -62,17 +62,31 @@ local function exit(_, args)
   return ""
 end
 
+-- The four guests, one per line, for the usage and unknown-name replies. Comes
+-- from World.suspects rather than the alias table: aliases are many-to-one, so
+-- dumping their keys would list each suspect four times.
+local function suspect_list()
+    local lines = {}
+    for _, name in ipairs(World.suspects) do
+        table.insert(lines, "  " .. name)
+    end
+    return table.concat(lines, "\n")
+end
+
 local function accuse(state, args)
     if #args == 0 then
         return "Usage: accuse <name>\n"
-            .. "You must name one of the four guests."
+            .. "You must name one of the four guests:\n"
+            .. suspect_list()
     end
     local input = table.concat(args, " ")
         :lower():gsub("^%s+", ""):gsub("%s+$", "")
     local resolved = World.accuse_aliases[input]
     if not resolved then
         return "You scan the room. No one here answers to that name.\n"
-            .. "Try a first name, a surname, or a full name."
+            .. "The four guests are:\n"
+            .. suspect_list() .. "\n"
+            .. "A first name, a surname, or a full name all work."
     end
 
     if resolved == World.murderer then

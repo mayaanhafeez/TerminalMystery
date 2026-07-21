@@ -234,11 +234,16 @@ end
 
 local function find(state, args)
 	if #args == 0 then
-		return "Usage: find <name>  or  find . -name <name>\n" .. "Append -a to include hidden files."
+		return "Usage: find [path] [-name <pattern>]\n"
+			.. "  find .                 every file in the rooms you've visited\n"
+			.. "  find . -name '*.txt'   glob match on the filename\n"
+			.. "  find victim            shorthand: match without -name\n"
+			.. "Append -a to include hidden files."
 	end
 
 	local fname_pattern = nil
 	local include_hidden = false
+	local saw_path = false
 	local i = 1
 	while i <= #args do
 		local a = args[i]
@@ -249,20 +254,30 @@ local function find(state, args)
 			if args[i] then
 				fname_pattern = args[i]
 			end
-		elseif a ~= "." then
+		elseif a == "." then
+			saw_path = true
+		else
 			fname_pattern = a
 		end
 		i = i + 1
 	end
 
+	-- `find .` with no expression lists everything under the path, as real find
+	-- does. A bare `find <pattern>` is the game's shorthand for `-name`.
 	if not fname_pattern then
-		return "find: missing filename pattern"
+		if not saw_path then
+			return "find: missing filename pattern"
+		end
+		fname_pattern = "*"
 	end
 
 	local function fname_matches(fname, pattern)
 		local p = pattern:lower()
 		local f = fname:lower()
-		if p:find("%*", 1, true) then
+		-- Note the plain flag: the needle is the literal `*`, not the pattern
+		-- `%*`. Searching for "%*" plainly never matches, which silently
+		-- disabled globbing entirely.
+		if p:find("*", 1, true) then
 			local lua_pat = "^"
 				.. p:gsub("%%", "%%%%")
 					:gsub("%.", "%%.")

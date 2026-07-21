@@ -720,6 +720,12 @@ end
 -- Intentional breaks are preserved: blank lines (paragraph breaks), short
 -- lines (list items like `ls` output), indented next lines, and lines
 -- already ending in a non-word char like `.` `?` `/` `:` `]`.
+--
+-- Only prose reflows. A line is disqualified when it holds no space at all
+-- (a bare path or filename, as `find` and `ls` emit) or when it holds a run
+-- of two or more spaces (column-aligned records: Slack timestamps, access
+-- logs, the guest list). Both sides of a join must look like prose, so a
+-- long path can never swallow the entry after it.
 function M.wrap_text(text)
 	local font = M.font_term
 	local maxw = M.terminal_text_width()
@@ -730,11 +736,23 @@ function M.wrap_text(text)
 		table.insert(raw_lines, line)
 	end
 
+	-- Does this line read as prose, i.e. may it take part in a soft join?
+	local function is_prose(line)
+		local body = line:gsub("^%s+", "") -- leading indent is not a column gap
+		if not body:find(" ", 1, true) then
+			return false
+		end
+		return body:find("  ", 1, true) == nil
+	end
+
 	local function is_soft(prev, next_line)
 		if #prev < SOFT_THRESHOLD then
 			return false
 		end
 		if next_line == "" or next_line:match("^%s") then
+			return false
+		end
+		if not is_prose(prev) or not is_prose(next_line) then
 			return false
 		end
 		return prev:sub(-1):match("%w") ~= nil
@@ -1335,12 +1353,20 @@ local function draw_page_nav(x, y, w, page, total, color)
 	M.popup_next_rect = { x = dn_cx - tri - 8, y = cy - tri - 8, w = tri * 2 + 16, h = tri * 2 + 16 }
 end
 
+-- Trailing blank lines in an item's `content` string count as real lines when
+-- wrapping, so one stray newline can push a document over a page boundary and
+-- mint a page that renders as pure whitespace. Drop them before measuring.
+local function trim_trailing_blank(content)
+	return (content:gsub("%s+$", ""))
+end
+
 -- Render `content` into (x, y, w, h) with pagination. When it fits on one page
 -- it draws exactly as an unpaginated printf did; when it overflows, it reserves
 -- a nav strip at the bottom, draws the current page, and shows a Prev/Next bar.
 -- The current page comes from state.popup_page (default 1), clamped to the count.
 local function draw_popup_body(state, content, font, x, y, w, h, text_color, nav_color)
 	love.graphics.setFont(font)
+	content = trim_trailing_blank(content)
 	local line_h = font:getHeight()
 	local _, wrapped = font:getWrap(content, w)
 
@@ -1381,6 +1407,7 @@ end
 -- computer-log popups. Paginates vertically exactly like draw_popup_body.
 local function draw_popup_pre(state, content, font, x, y, w, h, text_color, nav_color)
 	love.graphics.setFont(font)
+	content = trim_trailing_blank(content)
 
 	-- Split into physical lines, preserving blanks so vertical spacing survives.
 	local rows = {}
@@ -1430,6 +1457,21 @@ local function draw_popup_pre(state, content, font, x, y, w, h, text_color, nav_
 	draw_page_nav(x, y + body_h, w, page, total, nav_color)
 end
 
+local POPUP_MARGIN = 12 -- breathing room between a popup and the window edge
+
+-- Popup documents are authored at fixed pixel sizes, but the window can be as
+-- small as 800x500 (conf.lua) — at which point a 580px-tall document overhangs
+-- the bottom edge and takes its Close button off-screen with it. Shrink the
+-- whole popup uniformly so it always fits, preserving each style's art aspect
+-- ratio. Returns the fitted size plus the scale, for art sized independently of
+-- the document box. Never enlarges.
+local function fit_popup(w, h)
+	local scale = math.min(1,
+		(M.W - POPUP_MARGIN * 2) / w,
+		(M.H - POPUP_MARGIN * 2) / h)
+	return w * scale, h * scale, scale
+end
+
 local function draw_popup(state)
 	if not state.popup_item then
 		M.popup_close_rect = nil
@@ -1455,8 +1497,7 @@ local function draw_popup(state)
 	love.graphics.setFont(M.font)
 
 	if sprite == "book" then
-		local DOC_W = 440
-		local DOC_H = 580
+		local DOC_W, DOC_H = fit_popup(440, 580)
 		local BIND_W = 22
 		local doc_x = (M.W - DOC_W) / 2
 		local doc_y = (M.H - DOC_H) / 2
@@ -1509,8 +1550,7 @@ local function draw_popup(state)
 		love.graphics.printf("Close  [Esc]", btn_x, btn_y + (BTN_H - M.font:getHeight()) / 2, BTN_W, "center")
 		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
 	elseif sprite == "scroll" then
-		local DOC_W = 440
-		local DOC_H = 580
+		local DOC_W, DOC_H = fit_popup(440, 580)
 		local BIND_W = 36
 		local doc_x = (M.W - DOC_W) / 2
 		local doc_y = (M.H - DOC_H) / 2
@@ -1574,7 +1614,7 @@ local function draw_popup(state)
 		-- Digital evidence (logs, reports, on-screen files): an enlarged laptop
 		-- with the file rendered onto its screen in a terminal style. No
 		-- handwriting font — that is reserved for genuinely hand-written notes.
-		local POP = 640
+		local POP = fit_popup(640, 640)
 		local pop_x = (M.W - POP) / 2
 		local pop_y = (M.H - POP) / 2
 
@@ -1630,8 +1670,8 @@ local function draw_popup(state)
 		-- Slack popup: the slack-bg pixel-art chrome scaled up, chat text drawn
 		-- into the message column. Falls back to a plain dark panel if the
 		-- background image failed to load.
-		local POP_W = 680
-		local POP_H = 425 -- 1.6 aspect, matching slack-bg.png (192×120)
+		-- 1.6 aspect, matching slack-bg.png (192×120)
+		local POP_W, POP_H = fit_popup(680, 425)
 		local pop_x = (M.W - POP_W) / 2
 		local pop_y = (M.H - POP_H) / 2
 
@@ -1675,9 +1715,8 @@ local function draw_popup(state)
 		M.popup_close_rect = { x = btn_x, y = btn_y, w = BTN_W, h = BTN_H }
 	else
 		-- Object popup: large sprite image + text box at the bottom
-		local POP_W = 420
-		local POP_H = 500
-		local IMG_SZ = 200
+		local POP_W, POP_H, pop_scale = fit_popup(420, 500)
+		local IMG_SZ = 200 * pop_scale -- shrink the art too, so the text box survives
 		local PAD = 16
 		local pop_x = (M.W - POP_W) / 2
 		local pop_y = (M.H - POP_H) / 2

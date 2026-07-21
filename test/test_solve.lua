@@ -33,8 +33,9 @@ T.test("full documented path wins via accuse lin", function()
     run("cat draft_email.txt")
     run("cat repo_log.txt")
     run("cat slack_eng_help.txt")
-    local dm = run("cat slack_trent_dm.txt")
-    T.ok(dm:find("FOXGLOVE"), "expected the vault word in slack_trent_dm.txt")
+    -- The DM carries the decode recipe only. It deliberately does not name the
+    -- word — that comes from decoding .cipher_note.txt.
+    run("cat slack_trent_dm.txt")
 
     -- FOXGLOVE, a=1..z=26 mod 8: F6 O7 X0 G7 L4 O7 V6 E5
     -- repeated letter (O, mod8=7) + first (^F, mod8=6) + last (E$, mod8=5, odd->keep) = 765

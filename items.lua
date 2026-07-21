@@ -109,8 +109,7 @@ daniel  10:01 PM
 ayesha  10:03 PM
   does anyone know why the wine cellar smart lock keeps triggering
 wei  10:05 PM
-  ok the emacs/vim debate ends NOW. living room. @everyone.
-]],
+  ok the emacs/vim debate ends NOW. living room. @everyone.]],
 	},
 
 	-- ---------------- Home Office ----------------
@@ -221,8 +220,7 @@ Priya Raghavan:
 Daniel Lin:
   "I was in the home office playing Balatro. Didn't want
    to jinx it, so I kept to myself. Didn't even hear the
-   emacs/vim thing kick off."
-]],
+   emacs/vim thing kick off."]],
 	},
 
 	calendar_note = {
@@ -275,9 +273,7 @@ to a door that won't open.]],
 		content = [[A company badge lies face-down between two wine racks:
 
         DANIEL LIN
-        Infrastructure
-
-]],
+        Infrastructure]],
 	},
 
 	cellar_access_log = {
@@ -361,9 +357,7 @@ This is the money Arjun found.]],
         foxglove leaf extract
 
   Margin note: "therapeutic window is narrow — don't get
-  creative with this one."
-
-]],
+  creative with this one."]],
 	},
 
 	slack_final = {
@@ -380,7 +374,7 @@ This is the money Arjun found.]],
 		channel = "DM: daniel lin (draft)",
 		hidden  = true,
 		content = [[daniel  (draft — never sent)
-  in the office playing balatro. Did go out for 5-10 mins to grab something, didn't even hear the emacs/vim thing kick off lol]],
+  in the office playing balatro. Did go to the cellar for 5-10 mins to grab something, didn't even hear the emacs/vim thing kick off lol]],
 	},
 
 	audit_stream = {
