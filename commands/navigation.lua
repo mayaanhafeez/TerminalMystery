@@ -1,6 +1,7 @@
 -- navigation.lua — ls, cd, pwd, cwd
 
 local World = require("world")
+local Audio = require("audio")
 
 local function room_path(room_id)
     local parts = {}
@@ -141,10 +142,13 @@ local function cd(state, args)
         if state.current_room == root_id then
             return "You are already in the " .. World.rooms[root_id].name .. "."
         end
+        local was_new = not state.visited[root_id]
         state.previous_room = state.current_room
         state.current_room  = root_id
         state.visited[root_id] = true
         World.check_unlocks(state)
+        Audio.set_room(root_id)
+        Audio.play(was_new and "door_new" or "step")
         return World.rooms[root_id].description
     end
 
@@ -172,6 +176,7 @@ local function cd(state, args)
 
     local cursor = state.current_room
     local traversed = {}
+    local badge_used = false
 
     for _, comp in ipairs(components) do
         if comp == "." then
@@ -185,6 +190,8 @@ local function cd(state, args)
             state.current_room  = prev
             state.visited[prev] = true
             World.check_unlocks(state)
+            Audio.set_room(prev)
+            Audio.play("step")
             return room_path(prev) .. "\n" .. World.rooms[prev].description
         elseif comp == ".." then
             local parent = get_parent(cursor)
@@ -211,6 +218,7 @@ local function cd(state, args)
             end
             local dest = World.rooms[next_id]
             if dest.mode == "000" then
+                Audio.play("locked")
                 return "Permission denied. The " .. dest.name .. " is locked."
             end
             if dest.requires then
@@ -224,9 +232,11 @@ local function cd(state, args)
                     end
                 end
                 if not key_present then
+                    Audio.play("locked")
                     return "The smart lock blinks red. You need a badge to enter the "
                         .. dest.name .. "."
                 end
+                badge_used = true
             end
             cursor = next_id
             table.insert(traversed, cursor)
@@ -237,12 +247,21 @@ local function cd(state, args)
         return "You are already here."
     end
 
+    local was_new = not state.visited[cursor]
     for _, room_id in ipairs(traversed) do
         state.visited[room_id] = true
     end
     state.previous_room = state.current_room
     state.current_room  = cursor
     World.check_unlocks(state)
+    Audio.set_room(cursor)
+    if badge_used then
+        Audio.play("badge_ok")
+    elseif was_new then
+        Audio.play("door_new")
+    else
+        Audio.play("step")
+    end
     return World.rooms[cursor].description
 end
 

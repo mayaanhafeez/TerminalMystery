@@ -12,6 +12,7 @@ require("test.test_evidence")
 require("test.test_screen")
 require("test.test_save")
 require("test.test_solve")
+require("test.test_audio")
 -- Last: it stubs the GameScreen global that vim.lua's :q hands off to.
 require("test.test_vim")
 

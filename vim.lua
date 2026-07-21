@@ -12,6 +12,8 @@
 -- Bytes, not UTF-8: the buffer is indexed with plain string.sub, so a pasted
 -- multibyte glyph would be split by the cursor.
 
+local Audio = require("audio")
+
 local M = {}
 
 -- The single scratch pad. `vim`, `nvim` and `vi` all open this one file no
@@ -148,6 +150,7 @@ local function save(vim)
 	vim.state.notes = copy_lines(vim.lines)
 	vim.dirty = false
 	vim.msg = string.format('"%s" %dL written', NOTES_NAME, #vim.lines)
+	Audio.play("write_ok")
 end
 
 -- Tear the editor down. Same shape as meta.lua's `exit`: call straight back
@@ -168,6 +171,7 @@ local function run_command(vim)
 	elseif cmd == "q" then
 		if vim.dirty then
 			vim.msg = "E37: No write since last change (add ! to override)"
+			Audio.play("bell")
 		else
 			quit()
 		end
@@ -175,6 +179,7 @@ local function run_command(vim)
 		quit()
 	else
 		vim.msg = "E492: Not an editor command: " .. cmd
+		Audio.play("bell")
 	end
 end
 

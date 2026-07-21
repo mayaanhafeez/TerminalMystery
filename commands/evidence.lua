@@ -1,6 +1,7 @@
 -- evidence.lua — cat, grep
 
 local World = require("world")
+local Audio = require("audio")
 
 local function cat(state, args)
 	if #args == 0 then
@@ -18,16 +19,20 @@ local function cat(state, args)
 	local item = World.get_item(room_id, fname)
 	if item then
 		if item.mode == "000" then
+			Audio.play("error_tick")
 			return "Permission denied. That document is restricted."
 		end
 		state.files_read[room_id .. "/" .. fname] = true
 		World.check_unlocks(state)
 		state.popup_item = item
 		state.popup_page = 1
+		Audio.play_sprite(item.popup or item.sprite, "open")
+		Audio.duck(true)
 		return item.content
 	end
 	-- Cross-room path was explicit: just report missing
 	if room_id ~= state.current_room then
+		Audio.play("error_tick")
 		return "cat: " .. path .. ": no such file in " .. World.rooms[room_id].name
 	end
 	-- Plain filename: hint if the file exists elsewhere
@@ -36,6 +41,7 @@ local function cat(state, args)
 			return "Hint: That document is in the " .. World.rooms[visited_id].name .. ", not here."
 		end
 	end
+	Audio.play("error_tick")
 	return "There is nothing here by that name."
 end
 
@@ -160,6 +166,7 @@ local function grep(state, args)
 	end
 
 	if flags.r then
+		Audio.play("search")
 		local room_ids = {}
 		for id in pairs(state.visited) do
 			table.insert(room_ids, id)
@@ -227,6 +234,7 @@ local function grep(state, args)
 	end
 
 	if #results == 0 then
+		Audio.play("error_tick")
 		return "(no matches)"
 	end
 	return table.concat(results, "\n")
@@ -474,14 +482,17 @@ local function sed(state, args)
 
     if in_place then
         if not item.writable then
+            Audio.play("error_tick")
             return "sed: cannot write " .. fname .. ": Permission denied\n"
                 .. "     (try: chmod +w " .. fname .. ")"
         end
         if total == 0 then
+            Audio.play("error_tick")
             return "sed: " .. fname .. ": no occurrences of \"" .. pattern .. "\"; file unchanged"
         end
         item.content = new_content
         item.edited  = true
+        Audio.play("edit_commit")
         return "sed: edited " .. fname .. " in place ("
             .. total .. " substitution" .. (total == 1 and "" or "s") .. ")"
     end

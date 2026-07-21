@@ -8,6 +8,7 @@
 Screen = require("screen")
 Render = require("render")
 Banner = require("banner")
+local Audio = require("audio")
 
 local M = {}
 
@@ -99,9 +100,12 @@ local function on_input()
 	if anim.flashing then
 		return
 	elseif not anim.ready then
+		Audio.stop_group("typing")
+		Audio.stop_group("crt")
 		finish_boot()
 	else
 		anim.flashing = true
+		Audio.play("crt_on")
 		Render.flash_begin()
 	end
 end
@@ -132,6 +136,7 @@ function M.update(dt)
 		while anim.char < n and anim.timer >= CHAR_INTERVAL do
 			anim.timer = anim.timer - CHAR_INTERVAL
 			anim.char = anim.char + 1
+			Audio.play("key_press")
 		end
 		-- Fully typed: pause, then commit the line and advance.
 		if anim.char >= n and anim.timer >= CMD_PAUSE then

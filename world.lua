@@ -927,6 +927,8 @@ function M.new_state()
       emacs = true,
       nano = true,
       vi = true,
+      mute = true,
+      volume = true,
 		},
 		destroyed = {},
 		-- The vim scratch pad (vim.lua), one entry per line. Session-scoped: a

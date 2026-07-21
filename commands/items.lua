@@ -1,6 +1,7 @@
 -- items.lua — mv, cp, rm, chmod
 
 local World = require("world")
+local Audio = require("audio")
 
 -- Cap the length of a user-chosen filename (via `cp <file> <newname>`). Keeps
 -- labels from overrunning their sprite in the room view; the longest built-in
@@ -35,6 +36,7 @@ local function mv(state, args)
     item.room = dst_id
     -- Re-place so the moved sprite doesn't land on an item already in the room.
     item.x, item.y = World.find_free_position(dst_id, src_fname)
+    Audio.play("move")
     return "Moved " .. src_fname .. " to " .. World.rooms[dst_id].name .. "."
 end
 
@@ -96,6 +98,7 @@ local function cp(state, args)
     -- (the source it was copied from, or anything already in the destination).
     copy.x, copy.y = World.find_free_position(dst_room_id, dst_fname)
     World.rooms[dst_room_id].items[dst_fname] = copy
+    Audio.play("move")
 
     if dst_room_id == src_room_id then
         return "Copied " .. src_fname .. " to " .. dst_fname .. "."
@@ -121,6 +124,7 @@ local function rm(state, args)
     local item = World.get_item(state.current_room, fname)
     if not item then return "rm: " .. fname .. ": no such file" end
     if not force then
+        Audio.play("warn")
         return "This cannot be undone. Run `rm -f " .. fname
             .. "` to permanently destroy this evidence."
     end
@@ -128,6 +132,7 @@ local function rm(state, args)
     World.rooms[state.current_room].items[fname] = nil
     if not state.destroyed then state.destroyed = {} end
     state.destroyed[state.current_room .. "/" .. fname] = true
+    Audio.play("destroy")
     return "rm: " .. fname .. " destroyed."
 end
 
@@ -157,9 +162,13 @@ local function chmod(state, args)
         if id == name_lower or room.name:lower() == name_lower then
             -- Keypad-locked rooms only accept the exact code (case-insensitive).
             if room.lock_code and mode:lower() ~= room.lock_code:lower() then
+                Audio.play("unlock_fail")
                 return "chmod: " .. room.name .. ": incorrect code. The door stays locked."
             end
             room.mode = mode
+            if room.lock_code then
+                Audio.play("unlock_heavy")
+            end
             return "chmod: " .. room.name .. " \xe2\x86\x92 " .. mode
         end
     end

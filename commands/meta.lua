@@ -1,6 +1,7 @@
 -- meta.lua — help, echo, exit, accuse
 
 local World = require("world")
+local Audio = require("audio")
 
 -- `help vim` (also `help nvim` / `help vi`). Keyed off the same three names the
 -- editor answers to, since a player who only knows one of them will type that.
@@ -82,6 +83,8 @@ local function help(state, args)
     table.insert(lines, "  chmod <mode> <target>    set permissions (chmod +w <file> makes it writable)")
     table.insert(lines, "  sed 's/old/new/' <file>  print the file with a substitution applied")
     table.insert(lines, "  sed -i 's/old/new/g' <f> edit the file in place (needs chmod +w first)")
+    table.insert(lines, "  mute                     toggle all sound on/off")
+    table.insert(lines, "  volume <0-100>           set the volume (no argument reports it)")
     table.insert(lines, "")
     table.insert(lines, "Tip: filenames you find with `ls` are case-sensitive.")
     table.insert(lines, "Tip: `accuse` takes a surname or a full name.")
@@ -90,6 +93,24 @@ end
 
 local function echo(_, args)
     return table.concat(args, " ")
+end
+
+local function mute(_, _)
+    Audio.set_enabled(not Audio.enabled)
+    return Audio.enabled and "Sound on." or "Sound off."
+end
+
+local function volume(_, args)
+    if #args == 0 then
+        return "Volume: " .. math.floor(Audio.volume_scale * 100 + 0.5) .. "%"
+            .. (Audio.enabled and "" or " (muted — run `mute` to unmute)")
+    end
+    local pct = tonumber(args[1])
+    if not pct then
+        return "Usage: volume <0-100>"
+    end
+    Audio.set_volume(pct)
+    return "Volume set to " .. math.floor(Audio.volume_scale * 100 + 0.5) .. "%."
 end
 
 -- Open the notes scratch pad. There is only ever the one file, so any arguments
@@ -185,4 +206,4 @@ local function accuse(state, args)
         .. "(Keep looking. The truth is in the evidence.)"
 end
 
-return { help = help, echo = echo, exit = exit, accuse = accuse, vim = vim, vi=vi, nvim = nvim, emacs=emacs, nano=nano}
+return { help = help, echo = echo, exit = exit, accuse = accuse, vim = vim, vi=vi, nvim = nvim, emacs=emacs, nano=nano, mute = mute, volume = volume}

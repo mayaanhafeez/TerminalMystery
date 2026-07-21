@@ -6,6 +6,7 @@ local Navigation = require("commands.navigation")
 local Evidence   = require("commands.evidence")
 local Items      = require("commands.items")
 local Meta       = require("commands.meta")
+local Audio      = require("audio")
 
 local M = {}
 
@@ -79,16 +80,23 @@ function M.execute(state, input)
 
     local handler = handlers[cmd]
     if not handler then
+        Audio.play("error_tick")
         return "You mutter the word \"" .. cmd .. "\" under your breath.\n"
             .. "Nothing in the house responds. (Type `help` for what you\n"
             .. "can actually do.)"
     end
 
     if not state.unlocked[cmd] then
+        Audio.play("locked")
         return locked_message(cmd)
     end
 
-    return handler(state, args) or ""
+    local had_grep = state.unlocked.grep
+    local result = handler(state, args) or ""
+    if not had_grep and state.unlocked.grep then
+        Audio.play("unlock_ping")
+    end
+    return result
 end
 
 return M

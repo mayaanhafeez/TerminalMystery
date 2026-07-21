@@ -5,6 +5,7 @@ local Render = require("render")
 local Completion = require("commands.completion")
 local Screen = require("screen")
 local Vim = require("vim")
+local Audio = require("audio")
 
 local state
 local term
@@ -185,6 +186,7 @@ local function finish_intro()
 	intro.active = false
 	intro.seg = #intro.segments + 1
 	render_intro()
+	Audio.stop_group("typing")
 end
 
 local function advance_intro(dt)
@@ -205,6 +207,7 @@ local function advance_intro(dt)
 			intro.char = intro.char + 1
 			intro.acc = intro.acc - 1
 			changed = true
+			Audio.play("key_press")
 		else
 			-- Segment fully revealed; advance, honoring any pause it carries.
 			intro.seg = intro.seg + 1
@@ -244,6 +247,11 @@ local function on_win(result_text)
 		best_commands = math.min(prev_cmds or math.huge, state.win_commands),
 	}
 	save_best(best)
+
+	Audio.play("win")
+	if state.new_time_record then
+		Audio.play("record")
+	end
 end
 
 local function execute_input()
@@ -261,6 +269,7 @@ local function execute_input()
 
 	table.insert(term.history, input)
 	push_text("> " .. input, "input")
+	Audio.play("key_enter")
 
 	local result = Commands.execute(state, input)
 	if state.won then
@@ -281,6 +290,8 @@ function M.enter()
 	crt.mode = "on"
 	crt.t = 0
 	crt_swallow_text = false
+	Audio.play("crt_on")
+	Audio.set_room(state.current_room)
 end
 
 -- Skip the running CRT animation. A power-on jumps straight to the live game; a
@@ -290,6 +301,7 @@ function M.crt_skip()
 		return
 	end
 	crt.active = false
+	Audio.stop_group("crt")
 	if crt.mode == "off" then
 		Screen.set("play")
 	end
@@ -301,6 +313,7 @@ function M.request_exit_to_play()
 	crt.active = true
 	crt.mode = "off"
 	crt.t = 0
+	Audio.play("crt_off")
 end
 
 -- Called by the `vim` / `nvim` / `vi` commands. Opening and closing both change
@@ -346,6 +359,7 @@ local function resolve_exit_prompt(choice)
 end
 
 function M.update(dt)
+	Audio.update(dt)
 	-- Clear the one-shot text-swallow (events for this frame already ran).
 	crt_swallow_text = false
 	-- Advance the CRT timer; on completion, a power-off hands off to the title.
@@ -435,6 +449,7 @@ function M.text_input(t)
 	term.cursor_pos = pos + #t
 	cursor_timer = 0
 	term.cursor_visible = true
+	Audio.play("key_press")
 end
 
 function M.keypressed(key)
@@ -480,11 +495,15 @@ function M.keypressed(key)
 	end
 	if state.popup_item then
 		if key == "escape" then
+			Audio.play_sprite(state.popup_item.popup or state.popup_item.sprite, "close")
+			Audio.duck(false)
 			state.popup_item = nil
 		elseif key == "up" or key == "pageup" then
 			state.popup_page = math.max(1, (state.popup_page or 1) - 1)
+			Audio.play("page_turn")
 		elseif key == "down" or key == "pagedown" or key == "space" then
 			state.popup_page = math.min(Render.popup_page_count or 1, (state.popup_page or 1) + 1)
+			Audio.play("page_turn")
 		end
 		return
 	end
@@ -504,10 +523,12 @@ function M.keypressed(key)
 		if term.tab_candidates then
 			term.tab_index = (term.tab_index % #term.tab_candidates) + 1
 			term.input = term.tab_candidates[term.tab_index]
+			Audio.play("tab_many")
 		else
 			local candidates = Completion.get_completions(state, term.input)
 			if #candidates == 1 then
 				term.input = candidates[1]
+				Audio.play("tab_one")
 			elseif #candidates > 1 then
 				-- Strip the already-typed prefix so we display only the completing part
 				local disp_before = term.input:match("%s$") and term.input or (term.input:match("^(.*%s)%S+$") or "")
@@ -523,6 +544,7 @@ function M.keypressed(key)
 				term.tab_candidates = candidates
 				term.tab_index = 1
 				term.input = candidates[1]
+				Audio.play("tab_many")
 			end
 		end
 		term.cursor_pos = #term.input
@@ -549,6 +571,7 @@ function M.keypressed(key)
 		end
 		cursor_timer = 0
 		term.cursor_visible = true
+		Audio.play("key_back")
 	elseif key == "w" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
 		clear_tab_state()
 		local pos = term.cursor_pos or #term.input
@@ -652,9 +675,13 @@ function M.mousepressed(x, y, button)
 	end
 	if hit(Render.popup_prev_rect) then
 		state.popup_page = math.max(1, (state.popup_page or 1) - 1)
+		Audio.play("page_turn")
 	elseif hit(Render.popup_next_rect) then
 		state.popup_page = math.min(Render.popup_page_count or 1, (state.popup_page or 1) + 1)
+		Audio.play("page_turn")
 	elseif hit(Render.popup_close_rect) then
+		Audio.play_sprite(state.popup_item.popup or state.popup_item.sprite, "close")
+		Audio.duck(false)
 		state.popup_item = nil
 	end
 end
