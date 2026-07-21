@@ -1262,6 +1262,10 @@ local function draw_status_bar(state)
 	end
 end
 
+local function draw_vim_view()
+
+end
+
 local function draw_win_screen(state, best)
 	love.graphics.setColor(C.win_overlay)
 	love.graphics.rectangle("fill", 0, 0, M.W, M.H)

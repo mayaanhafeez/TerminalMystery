@@ -17,6 +17,7 @@ local function help(state, _)
         "  exit                     quit the game",
         "  help                     show this list",
         "  accuse <name>            name the murderer",
+        "  vim/nvim/vi              open a good editor to take notes"
     }
     table.insert(lines, "  cat <file>               read a piece of evidence")
     if state.unlocked.grep then
@@ -46,6 +47,29 @@ end
 
 local function echo(_, args)
     return table.concat(args, " ")
+end
+
+local function vim(_, _)
+  --actual vim function
+end
+
+local function nvim(_, _)
+  vim(_,_)
+end
+
+local function vi(_, _)
+  vim(_,_)
+end
+
+local function emacs(_,_)
+  return "use vim to edit files"
+end
+
+local function nano(_,_)
+    local lines = {}
+    table.insert(lines, "seriously...")
+    table.insert(lines, "USE VIM!")
+  return table.concat(lines, "\n")
 end
 
 local function exit(_, args)
@@ -114,4 +138,4 @@ local function accuse(state, args)
         .. "(Keep looking. The truth is in the evidence.)"
 end
 
-return { help = help, echo = echo, exit = exit, accuse = accuse }
+return { help = help, echo = echo, exit = exit, accuse = accuse, vim = vim, vi=vi, nvim = nvim, emacs=emacs, nano=nano}
