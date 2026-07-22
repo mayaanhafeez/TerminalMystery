@@ -136,7 +136,6 @@ function M.update(dt)
 		while anim.char < n and anim.timer >= CHAR_INTERVAL do
 			anim.timer = anim.timer - CHAR_INTERVAL
 			anim.char = anim.char + 1
-			Audio.play("key_press")
 		end
 		-- Fully typed: pause, then commit the line and advance.
 		if anim.char >= n and anim.timer >= CMD_PAUSE then

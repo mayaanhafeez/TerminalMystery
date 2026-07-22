@@ -207,7 +207,6 @@ local function advance_intro(dt)
 			intro.char = intro.char + 1
 			intro.acc = intro.acc - 1
 			changed = true
-			Audio.play("key_press")
 		else
 			-- Segment fully revealed; advance, honoring any pause it carries.
 			intro.seg = intro.seg + 1
@@ -290,6 +289,7 @@ function M.enter()
 	crt.mode = "on"
 	crt.t = 0
 	crt_swallow_text = false
+	Audio.set_suppressed(state.terminal_only)
 	Audio.play("crt_on")
 	Audio.set_room(state.current_room)
 end
@@ -301,9 +301,11 @@ function M.crt_skip()
 		return
 	end
 	crt.active = false
-	Audio.stop_group("crt")
 	if crt.mode == "off" then
+		Audio.stop_all()
 		Screen.set("play")
+	else
+		Audio.stop_group("crt")
 	end
 end
 
@@ -368,6 +370,7 @@ function M.update(dt)
 		if crt.t >= crt.duration then
 			crt.active = false
 			if crt.mode == "off" then
+				Audio.stop_all()
 				Screen.set("play")
 				return
 			end
@@ -449,7 +452,6 @@ function M.text_input(t)
 	term.cursor_pos = pos + #t
 	cursor_timer = 0
 	term.cursor_visible = true
-	Audio.play("key_press")
 end
 
 function M.keypressed(key)
@@ -571,7 +573,6 @@ function M.keypressed(key)
 		end
 		cursor_timer = 0
 		term.cursor_visible = true
-		Audio.play("key_back")
 	elseif key == "w" and (love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")) then
 		clear_tab_state()
 		local pos = term.cursor_pos or #term.input
@@ -690,6 +691,7 @@ function M.start_new(terminal_only)
 	state = World.new_state()
 	state.terminal_only = terminal_only or false
 	Render.terminal_only = state.terminal_only
+	Audio.set_suppressed(state.terminal_only)
 	-- A new run starts with an empty scratch pad (World.new_state) and the
 	-- editor closed at its default text size.
 	vim = nil
@@ -731,6 +733,7 @@ function M.start_from_save(save_data)
   state.notes = Vim.load_notes()
 
   Render.terminal_only = state.terminal_only
+  Audio.set_suppressed(state.terminal_only)
   vim = nil
   Render.vim_open = false
   Render.set_vim_font_scale(1)

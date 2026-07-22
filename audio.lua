@@ -16,6 +16,11 @@ M.volume_scale = 1.0 -- user-controlled master slider (`volume <0-100>`), persis
 M.sfx_volume = 1.0 -- group baseline for one-shot SFX
 M.ambience_volume = 0.6 -- group baseline for room ambience beds
 
+-- Set by screens/game.lua for a terminal-only run (no room view): audio is
+-- entirely off for that run, independent of the player's own mute/volume
+-- setting, so unmuting mid-run can't turn it back on by accident.
+local suppressed = false
+
 local SETTINGS_PATH = "settings.txt"
 
 -- id -> how to play it. `files` is a list; one is chosen at random per play,
@@ -120,8 +125,12 @@ local function load_settings()
 	if not content or content == "" then
 		return
 	end
-	local chunk = load(content, "settings", "t", {})
-	if not chunk then
+	-- Bare 1-arg `load` (matching save.lua's convert_string_to_state): some
+	-- LuaJIT builds (the web target among them) don't support the 5.2-style
+	-- 4-arg load(str, chunkname, mode, env) and throw "function expected,
+	-- got string" instead of just erroring on the content.
+	local ok_load, chunk = pcall(load, content)
+	if not ok_load or not chunk then
 		return
 	end
 	local ok, value = pcall(chunk)
@@ -182,7 +191,7 @@ end
 
 -- opts = { volume, pitch, loop }, all optional overrides of the registry entry.
 function M.play(id, opts)
-	if not HAVE_AUDIO or not M.enabled then
+	if not HAVE_AUDIO or not M.enabled or suppressed then
 		return
 	end
 	local def = M.SOUNDS[id]
@@ -262,7 +271,7 @@ end
 -- Crossfade the ambience bed to whatever ROOM_AMBIENCE[room_id] points at.
 -- A room with no entry (or the same bed already playing) is a no-op.
 function M.set_room(room_id)
-	if not HAVE_AUDIO then
+	if not HAVE_AUDIO or suppressed then
 		return
 	end
 	local path = M.ROOM_AMBIENCE[room_id]
@@ -298,7 +307,7 @@ function M.update(dt)
 	amb.fade_t = math.min(amb.fade_dur, amb.fade_t + dt)
 	local frac = amb.fade_dur > 0 and (amb.fade_t / amb.fade_dur) or 1
 	local target = M.ambience_volume * M.volume_scale * (amb.ducked and 0.35 or 1.0)
-	if not M.enabled then
+	if not M.enabled or suppressed then
 		target = 0
 	end
 
@@ -337,6 +346,33 @@ end
 function M.set_volume(pct)
 	M.volume_scale = math.max(0, math.min(100, pct)) / 100
 	save_settings()
+end
+
+-- Silence this run entirely (terminal-only mode has no room view, so no
+-- ambience, and no SFX either). Independent of M.enabled / settings.txt.
+function M.set_suppressed(value)
+	suppressed = value
+	if value then
+		M.stop_all()
+	end
+end
+
+-- Stop every currently-playing sound: ambience beds and every SFX group.
+-- Called when leaving the game screen (quit to title) so nothing keeps
+-- ringing over a screen that no longer owns it.
+function M.stop_all()
+	if not HAVE_AUDIO then
+		return
+	end
+	for _, src in pairs(ambience_sources) do
+		if src:isPlaying() then
+			src:stop()
+		end
+	end
+	amb.current, amb.current_path, amb.fading_out = nil, nil, nil
+	for group in pairs(active_by_group) do
+		M.stop_group(group)
+	end
 end
 
 return M

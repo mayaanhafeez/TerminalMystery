@@ -43,8 +43,8 @@ generic CC0 noise/machine loop was used as a stand-in. See
 | tick.ogg | Kenney Interface Sounds | tick_001.ogg | CC0 |
 | tick2.ogg | Kenney Interface Sounds | tick_004.ogg | CC0 |
 | error.ogg | Kenney Interface Sounds | error_008.ogg | CC0 |
-| crt_on.ogg | Kenney Digital Audio | powerUp1.ogg | CC0 |
-| crt_off.ogg | Kenney Digital Audio | lowDown.ogg | CC0 |
+| crt_on.ogg | Kenney Sci-fi Sounds | lowFrequency_explosion_000.ogg | CC0 |
+| crt_off.ogg | Kenney Sci-fi Sounds | lowFrequency_explosion_001.ogg | CC0 |
 | bell.ogg | Kenney Interface Sounds | bong_001.ogg | CC0 |
 | write_ok.ogg | Kenney Interface Sounds | confirmation_001.ogg | CC0 |
 | mode_tick.ogg | Kenney UI Audio | switch5.ogg | CC0 |
