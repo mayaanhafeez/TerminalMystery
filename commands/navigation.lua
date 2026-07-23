@@ -149,6 +149,7 @@ local function cd(state, args)
         World.check_unlocks(state)
         Audio.set_room(root_id)
         Audio.play(was_new and "door_new" or "step")
+        Audio.play_delayed("step", 0.2) -- second footfall: you walk into the room
         return World.rooms[root_id].description
     end
 
@@ -192,6 +193,7 @@ local function cd(state, args)
             World.check_unlocks(state)
             Audio.set_room(prev)
             Audio.play("step")
+            Audio.play_delayed("step", 0.19)
             return room_path(prev) .. "\n" .. World.rooms[prev].description
         elseif comp == ".." then
             local parent = get_parent(cursor)
@@ -262,6 +264,7 @@ local function cd(state, args)
     else
         Audio.play("step")
     end
+    Audio.play_delayed("step", 0.2) -- second footfall: you walk into the room
     return World.rooms[cursor].description
 end
 

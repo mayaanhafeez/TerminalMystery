@@ -60,9 +60,19 @@ T.test("M.play_sprite is a silent no-op without love.audio", function()
     T.ok(ok, "Audio.play_sprite() must not error when love.audio is absent")
 end)
 
+T.test("M.play_delayed is a silent no-op without love.audio", function()
+    local ok = pcall(Audio.play_delayed, "step", 0.2)
+    T.ok(ok, "Audio.play_delayed() must not error when love.audio is absent")
+end)
+
 T.test("M.stop_group is a silent no-op without love.audio", function()
     local ok = pcall(Audio.stop_group, "typing")
     T.ok(ok, "Audio.stop_group() must not error when love.audio is absent")
+end)
+
+T.test("M.stop_ambience is a silent no-op without love.audio", function()
+    local ok = pcall(Audio.stop_ambience)
+    T.ok(ok, "Audio.stop_ambience() must not error when love.audio is absent")
 end)
 
 T.test("M.set_room is a silent no-op without love.audio", function()
