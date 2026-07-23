@@ -331,6 +331,21 @@ function M.duck(active)
 	amb.ducked = active
 end
 
+-- Cut the room ambience bed immediately, leaving one-shot SFX (e.g. the CRT
+-- power-off) to keep ringing. Used on `exit` so the room tone stops the instant
+-- the command resolves, not when the power-off animation later finishes.
+function M.stop_ambience()
+	if not HAVE_AUDIO then
+		return
+	end
+	for _, src in pairs(ambience_sources) do
+		if src:isPlaying() then
+			src:stop()
+		end
+	end
+	amb.current, amb.current_path, amb.fading_out = nil, nil, nil
+end
+
 -- Drives the ambience crossfade. Call once per frame from the game screen.
 function M.update(dt)
 	if not HAVE_AUDIO then

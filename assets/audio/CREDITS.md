@@ -16,6 +16,11 @@ band for a livelier game-room texture. Real crowd/electronic ambience rather
 than the generic noise/machine stand-ins used before. See
 `.claude/for_ayaan.txt` for the punch list.
 
+Three files are marked **synthesized (this repo)** below — `ui/crt_on.ogg`,
+`ui/crt_off.ogg` and `amb/room_tone.ogg`. These are original works generated
+with `ffmpeg` (the "Original file" column gives the recipe) and are released CC0
+along with everything else; no third-party sample is involved.
+
 ## Sources
 
 | Pack / page | Author | License | URL |
@@ -52,8 +57,8 @@ than the generic noise/machine stand-ins used before. See
 | tick.ogg | Kenney Interface Sounds | tick_001.ogg | CC0 |
 | tick2.ogg | Kenney Interface Sounds | tick_004.ogg | CC0 |
 | error.ogg | Kenney Interface Sounds | error_008.ogg | CC0 |
-| crt_on.ogg | Kenney Sci-fi Sounds | lowFrequency_explosion_000.ogg | CC0 |
-| crt_off.ogg | Kenney Sci-fi Sounds | lowFrequency_explosion_001.ogg | CC0 |
+| crt_on.ogg | synthesized (this repo) | ffmpeg: static crackle + 62Hz degauss thunk + 11kHz flyback whine fade-in | CC0 |
+| crt_off.ogg | synthesized (this repo) | ffmpeg: switch clunk + 900→110Hz flyback collapse + whine die-off | CC0 |
 | bell.ogg | Kenney Interface Sounds | bong_001.ogg | CC0 |
 | write_ok.ogg | Kenney Interface Sounds | confirmation_001.ogg | CC0 |
 | mode_tick.ogg | Kenney UI Audio | switch5.ogg | CC0 |
@@ -95,7 +100,7 @@ than the generic noise/machine stand-ins used before. See
 
 | File | Source pack | Original file | License | Notes |
 | --- | --- | --- | --- | --- |
-| room_tone.ogg | 100 CC0 SFX #2 (OpenGameArt) | sfx100v2_loop_ambient_01.ogg | CC0 | used as-is, ~10s |
+| room_tone.ogg | synthesized (this repo) | ffmpeg: low-passed brown noise + faint 100Hz hum, 12s | CC0 | smooth HVAC bed (foyer / home office / closet); the old rubberduck loop was bright and wavering |
 | server_fans.ogg | 100 CC0 SFX #2 (OpenGameArt) | sfx100v2_loop_machine_02.ogg | CC0 | used as-is, ~10.6s |
 | cellar_drip.ogg | Loopable Dungeon Ambience (OpenGameArt) | dungeon_ambient_1.ogg | CC0 | 12s excerpt (20s-32s) of the 94s source |
 | birds_glass.ogg | Ambient Bird Sounds (OpenGameArt) | birds-isaiah658.ogg | CC0 | 12s excerpt (5s-17s) of the 30.7s source |

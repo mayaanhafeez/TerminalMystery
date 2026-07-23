@@ -321,6 +321,7 @@ function M.request_exit_to_play()
 	crt.active = true
 	crt.mode = "off"
 	crt.t = 0
+	Audio.stop_ambience() -- cut the room tone now, not when the power-off finishes
 	Audio.play("crt_off")
 end
 
