@@ -831,7 +831,13 @@ function M.resolve_file_path(current_room_id, path_str)
 		return nil, nil, "invalid path: " .. path_str
 	end
 	if room_part == "." then
-		return current_room_id, (file_part ~= "" and file_part or nil)
+		-- "./file" is a file in the current room; recurse so a longer path like
+		-- "./sunroom/keycard.txt" still resolves the room rather than treating the
+		-- whole remainder as a literal filename.
+		if file_part == "" then
+			return current_room_id, nil
+		end
+		return M.resolve_file_path(current_room_id, file_part)
 	end
 	local rp_lower = room_part:lower()
 	for id, r in pairs(M.rooms) do

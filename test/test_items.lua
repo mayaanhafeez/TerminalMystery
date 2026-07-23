@@ -89,6 +89,21 @@ T.test("mv home_office/draft_email.txt cellar moves from home_office", function(
     move_item_back("draft_email.txt", "cellar", "home_office")
 end)
 
+T.test("mv ./room/file.txt strips the ./ prefix and moves", function()
+    local s = make_state("foyer", {"foyer", "home_office", "cellar"})
+    Items.mv(s, {"./home_office/draft_email.txt", "Cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "item should be in cellar via ./home_office/…")
+    T.nil_(World.rooms.home_office.items["draft_email.txt"], "item should be gone from home_office")
+    move_item_back("draft_email.txt", "cellar", "home_office")
+end)
+
+T.test("mv ./file.txt resolves a file in the current room", function()
+    local s = make_state("home_office", {"home_office", "cellar"})
+    Items.mv(s, {"./draft_email.txt", "Cellar"})
+    T.ok(World.rooms.cellar.items["draft_email.txt"], "item should be in cellar via ./draft_email.txt")
+    move_item_back("draft_email.txt", "cellar", "home_office")
+end)
+
 -- -----------------------------------------------------------------------
 T.suite("cp — basic")
 
