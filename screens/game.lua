@@ -176,6 +176,7 @@ local function start_intro()
 		char = 0,
 		acc = 0,
 		pause = 0,
+		key_cd = 0, -- throttle so the fast reveal doesn't machine-gun the keystroke sfx
 		cps = math.max(1, total / INTRO_TYPING_SECONDS),
 	}
 	render_intro()
@@ -199,6 +200,7 @@ local function advance_intro(dt)
 		intro.pause = 0
 	end
 
+	intro.key_cd = math.max(0, intro.key_cd - dt)
 	intro.acc = intro.acc + dt * intro.cps
 	local changed = false
 	while intro.active and intro.acc >= 1 do
@@ -207,6 +209,10 @@ local function advance_intro(dt)
 			intro.char = intro.char + 1
 			intro.acc = intro.acc - 1
 			changed = true
+			if intro.key_cd <= 0 then
+				Audio.play("type_key")
+				intro.key_cd = 0.055
+			end
 		else
 			-- Segment fully revealed; advance, honoring any pause it carries.
 			intro.seg = intro.seg + 1

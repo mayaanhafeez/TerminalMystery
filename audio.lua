@@ -32,7 +32,18 @@ M.SOUNDS = {
 		pitch = { 0.94, 1.06 },
 		group = "typing",
 	},
-	key_enter = { files = { "assets/audio/ui/enter.ogg" }, volume = 0.5, group = "typing" },
+	-- Typewriter keystroke for the scripted boot / new-game reveals (throttled by
+	-- the callers so a fast reveal doesn't machine-gun). Real mechanical-key
+	-- recordings at low volume, unlike the synthetic UI clicks of key_press.
+	type_key = {
+		files = { "assets/audio/ui/type_1.ogg", "assets/audio/ui/type_2.ogg", "assets/audio/ui/type_3.ogg" },
+		volume = 0.22,
+		pitch = { 0.92, 1.08 },
+		group = "typing",
+	},
+	-- enter.ogg is now a real Return-key thock (was a rising confirmation chime
+	-- that read as a "beep" over every command, cat included).
+	key_enter = { files = { "assets/audio/ui/enter.ogg" }, volume = 0.45, group = "typing" },
 	key_back = { files = { "assets/audio/ui/back.ogg" }, volume = 0.3, group = "typing" },
 	tab_one = { files = { "assets/audio/ui/tick.ogg" }, volume = 0.3 },
 	tab_many = { files = { "assets/audio/ui/tick2.ogg" }, volume = 0.3 },
@@ -57,7 +68,17 @@ M.SOUNDS = {
 	popup_open = { files = { "assets/audio/world/popup_open.ogg" }, volume = 0.5 },
 	popup_close = { files = { "assets/audio/world/popup_close.ogg" }, volume = 0.5 },
 
-	step = { files = { "assets/audio/world/step.ogg" }, volume = 0.4 },
+	step = {
+		files = {
+			"assets/audio/world/step.ogg",
+			"assets/audio/world/step_1.ogg",
+			"assets/audio/world/step_2.ogg",
+			"assets/audio/world/step_3.ogg",
+			"assets/audio/world/step_4.ogg",
+		},
+		volume = 0.4,
+		pitch = { 0.94, 1.06 },
+	},
 	door_new = { files = { "assets/audio/world/door_new.ogg" }, volume = 0.55 },
 	locked = { files = { "assets/audio/world/locked.ogg" }, volume = 0.5 },
 	badge_ok = { files = { "assets/audio/world/badge_ok.ogg" }, volume = 0.55 },
@@ -101,6 +122,10 @@ local proto = {}
 
 -- group -> list of currently-playing clones, so stop_group can cut them off.
 local active_by_group = {}
+
+-- One-shot sounds queued to fire after a delay, drained by M.update. Used for the
+-- trailing footstep so a room change reads as a couple of steps, not one tap.
+local delayed = {}
 
 -- Cached "stream" Sources for ambience beds, keyed by file path.
 local ambience_sources = {}
@@ -226,6 +251,15 @@ function M.play(id, opts)
 	return src
 end
 
+-- Queue `id` to play after `delay` seconds (drained in M.update). No-op headless
+-- or when audio is off; the deferred M.play re-checks enabled/suppressed too.
+function M.play_delayed(id, delay, opts)
+	if not HAVE_AUDIO or not M.enabled or suppressed then
+		return
+	end
+	delayed[#delayed + 1] = { id = id, t = delay or 0, opts = opts }
+end
+
 -- Look up SPRITE_SOUNDS[sprite] (or .default) and play the id for `event`
 -- ("open" | "close"). New sprite kinds without an entry inherit the default.
 function M.play_sprite(sprite, event)
@@ -304,6 +338,19 @@ function M.update(dt)
 	end
 	untrack_finished()
 
+	if #delayed > 0 then
+		local kept = {}
+		for _, d in ipairs(delayed) do
+			d.t = d.t - dt
+			if d.t <= 0 then
+				M.play(d.id, d.opts)
+			else
+				kept[#kept + 1] = d
+			end
+		end
+		delayed = kept
+	end
+
 	amb.fade_t = math.min(amb.fade_dur, amb.fade_t + dt)
 	local frac = amb.fade_dur > 0 and (amb.fade_t / amb.fade_dur) or 1
 	local target = M.ambience_volume * M.volume_scale * (amb.ducked and 0.35 or 1.0)
@@ -370,6 +417,7 @@ function M.stop_all()
 		end
 	end
 	amb.current, amb.current_path, amb.fading_out = nil, nil, nil
+	delayed = {}
 	for group in pairs(active_by_group) do
 		M.stop_group(group)
 	end

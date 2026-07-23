@@ -71,6 +71,7 @@ function M.enter()
 		art_shown = 0, -- banner lines revealed so far
 		cursor_timer = 0,
 		cursor_on = true,
+		key_cd = 0, -- throttle so fast typing doesn't machine-gun the keystroke sfx
 	}
 end
 
@@ -117,6 +118,7 @@ function M.update(dt)
 		anim.cursor_timer = 0
 		anim.cursor_on = not anim.cursor_on
 	end
+	anim.key_cd = math.max(0, anim.key_cd - dt)
 
 	-- Whole script rendered: wait for the player to continue (see on_input).
 	if anim.idx > #SCRIPT then
@@ -136,6 +138,10 @@ function M.update(dt)
 		while anim.char < n and anim.timer >= CHAR_INTERVAL do
 			anim.timer = anim.timer - CHAR_INTERVAL
 			anim.char = anim.char + 1
+			if anim.key_cd <= 0 then
+				Audio.play("type_key")
+				anim.key_cd = 0.055
+			end
 		end
 		-- Fully typed: pause, then commit the line and advance.
 		if anim.char >= n and anim.timer >= CMD_PAUSE then
