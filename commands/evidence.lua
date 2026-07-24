@@ -3,14 +3,32 @@
 local World = require("world")
 local Audio = require("audio")
 
--- Rooms that a house-wide search (grep -r, find) should cover. Non-hidden rooms
--- are always searchable — you no longer have to have visited a room to grep or
--- find inside it — but a hidden room (e.g. the closet) stays out of results
--- until you've actually discovered it.
+-- Rooms that a house-wide search (grep -r, find) should cover. You no longer
+-- have to have *visited* an open room to search it — but locked rooms stay
+-- opaque, exactly like file permissions:
+--   * a keypad-locked room (mode "000", the Server Room) is searchable only
+--     once it's been opened, e.g. `chmod 765 server_room`;
+--   * a badge-locked room (`requires`, the Wine Cellar) only once you've
+--     actually gotten in (state.visited);
+--   * a hidden room (the closet) only once you've discovered it.
+local function room_searchable(state, room_id)
+	local room = World.rooms[room_id]
+	if room.hidden then
+		return state.visited[room_id] == true
+	end
+	if room.mode == "000" then
+		return false
+	end
+	if room.requires then
+		return state.visited[room_id] == true
+	end
+	return true
+end
+
 local function searchable_rooms(state)
 	local ids = {}
-	for id, room in pairs(World.rooms) do
-		if not room.hidden or state.visited[id] then
+	for id in pairs(World.rooms) do
+		if room_searchable(state, id) then
 			table.insert(ids, id)
 		end
 	end
