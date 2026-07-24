@@ -68,7 +68,10 @@ function M.get_completions(state, input)
             if target_id then
                 local file_lower = file_part:lower()
                 local prefix = (room_part == ".") and "." or World.rooms[target_id].name
-                for _, item in ipairs(World.get_items_in_room(target_id, false)) do
+                -- Hidden files (dotfiles) only complete once the name starts
+                -- with ".", the way a shell reveals them — a bare Tab stays clean.
+                local include_hidden = file_part:sub(1, 1) == "."
+                for _, item in ipairs(World.get_items_in_room(target_id, include_hidden)) do
                     if not seen[item.filename]
                         and item.filename:lower():sub(1, #file_lower) == file_lower then
                         table.insert(result, pre .. prefix .. "/" .. item.filename .. " ")
@@ -78,7 +81,8 @@ function M.get_completions(state, input)
             end
         else
             local p_lower = part:lower()
-            for _, item in ipairs(World.get_items_in_room(state.current_room, false)) do
+            local include_hidden = part:sub(1, 1) == "."
+            for _, item in ipairs(World.get_items_in_room(state.current_room, include_hidden)) do
                 if not seen[item.filename]
                     and item.filename:lower():sub(1, #p_lower) == p_lower then
                     table.insert(result, pre .. item.filename .. " ")
