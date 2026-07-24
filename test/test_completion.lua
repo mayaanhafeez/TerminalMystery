@@ -217,10 +217,29 @@ T.test("cat partial filters files", function()
     T.not_has(c, "cat repo_log.txt ")
 end)
 
-T.test("cat does not suggest hidden files", function()
+T.test("cat does not suggest hidden files with a bare tab", function()
     local state = make_state("home_office")
     local c = completions(state, "cat ")
-    T.not_has(c, "cat cipher_note.txt ")
+    T.not_has(c, "cat .cipher_note.txt ")
+end)
+
+T.test("cat completes a hidden file once the name starts with a dot", function()
+    local state = make_state("home_office")
+    local c = completions(state, "cat .")
+    T.has(c, "cat .cipher_note.txt ")
+end)
+
+T.test("cat completes a hidden file from a partial dotname", function()
+    local state = make_state("home_office")
+    local c = completions(state, "cat .ci")
+    T.has(c, "cat .cipher_note.txt ")
+    T.not_has(c, "cat draft_email.txt ")  -- visible files don't match a dot prefix
+end)
+
+T.test("cat completes a hidden file across a room path", function()
+    local state = make_state("foyer", {"foyer", "home_office"})
+    local c = completions(state, "cat home_office/.")
+    T.has(c, "cat home_office/.cipher_note.txt ")
 end)
 
 T.test("rm suggests current room files", function()
