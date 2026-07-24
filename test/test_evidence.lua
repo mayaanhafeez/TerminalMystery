@@ -74,6 +74,63 @@ T.test("chmod +w then sed -i rewrites content; cat sees the new text", function(
 end)
 
 -- -----------------------------------------------------------------------
+T.suite("grep -r / find — reach unvisited but only unlocked rooms")
+
+T.test("grep -r searches OPEN rooms you have not visited", function()
+    -- Only the foyer is visited; foxglove lives in the (open) den and garage.
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.grep(s, {"-r", "foxglove"})
+    T.ok(out:find("the_den/victim.txt", 1, true), "expected a hit from the unvisited den: " .. out)
+    T.ok(out:find("garage/dosage_log.txt", 1, true), "expected a hit from the unvisited garage: " .. out)
+end)
+
+T.test("find lists files in unvisited OPEN rooms", function()
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.find(s, {".", "-name", "dosage_log.txt"})
+    T.ok(out:find("garage/dosage_log.txt", 1, true), "expected the unvisited garage file: " .. out)
+end)
+
+T.test("a keypad-locked room stays opaque until it's opened", function()
+    -- 310,000 is unique to billing_audit.txt in the locked server room.
+    local s = make_state("foyer", {"foyer"})
+    local locked = Evidence.grep(s, {"-r", "310,000"})
+    T.eq(locked, "(no matches)")
+
+    -- chmod opens it (no need to have visited); now the search reaches it.
+    Items.chmod(s, {"765", "server_room"})
+    local opened = Evidence.grep(s, {"-r", "310,000"})
+    T.ok(opened:find("server_room/billing_audit.txt", 1, true),
+        "expected a hit once the server room is unlocked: " .. opened)
+end)
+
+T.test("find skips a keypad-locked room until it's opened", function()
+    local s = make_state("foyer", {"foyer"})
+    T.eq(Evidence.find(s, {".", "-name", "billing_audit.txt"}), "(no matching files)")
+    Items.chmod(s, {"765", "server_room"})
+    local out = Evidence.find(s, {".", "-name", "billing_audit.txt"})
+    T.ok(out:find("server_room/billing_audit.txt", 1, true), "expected the file once unlocked: " .. out)
+end)
+
+T.test("a badge-locked room is searchable only after you've been in", function()
+    -- cellar_access_log.txt is unique to the badge-locked wine cellar.
+    local unvisited = make_state("foyer", {"foyer"})
+    T.eq(Evidence.find(unvisited, {".", "-name", "cellar_access_log.txt"}), "(no matching files)")
+
+    local visited = make_state("foyer", {"foyer", "cellar"})
+    local out = Evidence.find(visited, {".", "-name", "cellar_access_log.txt"})
+    T.ok(out:find("wine_cellar/cellar_access_log.txt", 1, true),
+        "expected the cellar file once you've been inside: " .. out)
+end)
+
+T.test("house-wide search still hides an undiscovered hidden room", function()
+    -- The closet is a hidden room; until it's visited it stays out of results.
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.find(s, {".", "-a"})
+    T.ok(not out:find("draft_email_continued", 1, true),
+        "the hidden closet should not surface before it's found: " .. out)
+end)
+
+-- -----------------------------------------------------------------------
 T.suite("grep — line anchors (^ / $)")
 
 T.test("^ anchors to the start of a line", function()
