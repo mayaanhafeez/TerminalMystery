@@ -74,6 +74,30 @@ T.test("chmod +w then sed -i rewrites content; cat sees the new text", function(
 end)
 
 -- -----------------------------------------------------------------------
+T.suite("grep -r / find — reach unvisited rooms")
+
+T.test("grep -r searches rooms you have not visited", function()
+    -- Only the foyer is visited; the billing audit lives in the server room.
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.grep(s, {"-r", "310,000"})
+    T.ok(out:find("server_room", 1, true), "expected a hit from the unvisited server room: " .. out)
+end)
+
+T.test("find lists files in unvisited rooms", function()
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.find(s, {".", "-name", "billing_audit.txt"})
+    T.ok(out:find("server_room/billing_audit.txt", 1, true), "expected the unvisited server-room file: " .. out)
+end)
+
+T.test("house-wide search still hides an undiscovered hidden room", function()
+    -- The closet is a hidden room; until it's visited it stays out of results.
+    local s = make_state("foyer", {"foyer"})
+    local out = Evidence.find(s, {".", "-a"})
+    T.ok(not out:find("draft_email_continued", 1, true),
+        "the hidden closet should not surface before it's found: " .. out)
+end)
+
+-- -----------------------------------------------------------------------
 T.suite("grep — line anchors (^ / $)")
 
 T.test("^ anchors to the start of a line", function()

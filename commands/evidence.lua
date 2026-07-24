@@ -3,6 +3,21 @@
 local World = require("world")
 local Audio = require("audio")
 
+-- Rooms that a house-wide search (grep -r, find) should cover. Non-hidden rooms
+-- are always searchable — you no longer have to have visited a room to grep or
+-- find inside it — but a hidden room (e.g. the closet) stays out of results
+-- until you've actually discovered it.
+local function searchable_rooms(state)
+	local ids = {}
+	for id, room in pairs(World.rooms) do
+		if not room.hidden or state.visited[id] then
+			table.insert(ids, id)
+		end
+	end
+	table.sort(ids)
+	return ids
+end
+
 local function cat(state, args)
 	if #args == 0 then
 		return "Usage: cat <file>     (try `ls` to see what is in this room)"
@@ -167,11 +182,7 @@ local function grep(state, args)
 
 	if flags.r then
 		Audio.play("search")
-		local room_ids = {}
-		for id in pairs(state.visited) do
-			table.insert(room_ids, id)
-		end
-		table.sort(room_ids)
+		local room_ids = searchable_rooms(state)
 		for _, room_id in ipairs(room_ids) do
 			local items = items_for_room(room_id)
 			table.sort(items, function(a, b)
@@ -243,7 +254,7 @@ end
 local function find(state, args)
 	if #args == 0 then
 		return "Usage: find [path] [-name <pattern>]\n"
-			.. "  find .                 every file in the rooms you've visited\n"
+			.. "  find .                 every file in the house\n"
 			.. "  find . -name '*.txt'   glob match on the filename\n"
 			.. "  find victim            shorthand: match without -name\n"
 			.. "Append -a to include hidden files."
@@ -304,11 +315,7 @@ local function find(state, args)
 		return f:find(p, 1, true) ~= nil
 	end
 
-	local room_ids = {}
-	for id in pairs(state.visited) do
-		table.insert(room_ids, id)
-	end
-	table.sort(room_ids)
+	local room_ids = searchable_rooms(state)
 
 	local results = {}
 	for _, room_id in ipairs(room_ids) do
@@ -321,7 +328,7 @@ local function find(state, args)
 	end
 
 	if #results == 0 then
-		return "(no matching files in visited rooms)"
+		return "(no matching files)"
 	end
 	return table.concat(results, "\n")
 end
