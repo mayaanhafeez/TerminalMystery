@@ -53,7 +53,7 @@ M.accuse_aliases = {
 -- Derived automatically unless overridden:
 --   room id   → the table key
 --   room name → capitalize first letter of id  (e.g. "foyer" → "Foyer")
---   item filename → id .. ".txt"             (e.g. "guest_list" → "guest_list.txt")
+--   item filename → id .. ".txt"             (e.g. "guest_list" world→ "guest_list.txt")
 local raw = {
 	foyer = {
 		name = "entrance_hall",
@@ -71,11 +71,6 @@ logged into Slack.]],
 		wall = { 0.34, 0.30, 0.22 },
 		floor = { 0.72, 0.66, 0.50 },
 		floor_tint = { 0.88, 0.80, 0.58, 0.20 },
-		furniture = {
-			{ "dresser_flower", 0.10, 150 },
-			{ "clock", 0.48, 72 },
-			{ "mirror", 0.72, 215 },
-		},
 		items = {
 			{ ref = "welcome", x = 0.22, y = 0.30 },
 			{ ref = "guest_list", x = 0.55, y = 0.45 },
@@ -85,11 +80,12 @@ logged into Slack.]],
     tiles = {
       legend = {
         ["F"] = "assets/foyer-floor.png",
-        ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
-        ["d"] = {path = "assets/foyer-door.png", w =2, h =-5},
-        ["s"] = {path = "assets/foyer-door.png", w =-2, h =1},
+        ["D"] = {path = "assets/foyer-door.png", w =1, h =2},
         ["W"] = "assets/foyer-wall.png",
-        ["w"] = {path = "assets/foyer-wall.png", w=1, h=-5},
+        ["w"] = {path = "assets/foyer-wall.png", w=1, h=-10},
+        ["B"] = {path = "assets/launch banner.png", w = 4, h =2},
+        ["C"] = {path = "assets/Coat rack.png", w = 1, h = 1},
+        ["O"] = {path = "assets/Console.png", w = 3, h = 3},
       },
       layers = {
         {
@@ -112,10 +108,10 @@ logged into Slack.]],
         "......",
         "......",
         "......",
-        "WWWWWW",
+        "......",
         },
         {
-        ".d..d.",
+        ".D..D.",
         "......",
         "......",
         "......",
@@ -123,7 +119,18 @@ logged into Slack.]],
         "......",
         "......",
         "......",
-        "..D...",
+        "......",
+        },
+        {
+        ".B....",
+        "......",
+        "......",
+        "......",
+        "......",
+        "C.....",
+        "......",
+        "......",
+        "....O.",
         },
     },
 	},
