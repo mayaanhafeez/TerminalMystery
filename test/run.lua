@@ -13,7 +13,9 @@ require("test.test_screen")
 require("test.test_save")
 require("test.test_solve")
 require("test.test_audio")
--- Last: it stubs the GameScreen global that vim.lua's :q hands off to.
+-- test_meta stubs GameScreen/Save for `exit`; test_vim overwrites the same
+-- GameScreen global with its own stub and must stay last.
+require("test.test_meta")
 require("test.test_vim")
 
 local T = require("test.runner")

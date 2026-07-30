@@ -1,0 +1,21 @@
+name: Lua tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.4"
+
+      - name: Run test suite
+        run: lua test/run.lua
+
+      - name: Fuzz smoke check
+        run: lua headless/fuzz.lua --runs 300 --steps 40 --seed 1
