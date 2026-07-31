@@ -65,6 +65,13 @@ T.test("M.play_delayed is a silent no-op without love.audio", function()
     T.ok(ok, "Audio.play_delayed() must not error when love.audio is absent")
 end)
 
+T.test("M.play_walk is a silent no-op without love.audio", function()
+    local ok = pcall(Audio.play_walk)
+    T.ok(ok, "Audio.play_walk() must not error when love.audio is absent")
+    local ok2 = pcall(Audio.play_walk, { door = true, delay = 0.3 })
+    T.ok(ok2, "Audio.play_walk{door=true} must not error when love.audio is absent")
+end)
+
 T.test("M.stop_group is a silent no-op without love.audio", function()
     local ok = pcall(Audio.stop_group, "typing")
     T.ok(ok, "Audio.stop_group() must not error when love.audio is absent")

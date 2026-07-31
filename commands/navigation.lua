@@ -148,8 +148,7 @@ local function cd(state, args)
         state.visited[root_id] = true
         World.check_unlocks(state)
         Audio.set_room(root_id)
-        Audio.play(was_new and "door_new" or "step")
-        Audio.play_delayed("step", 0.2) -- second footfall: you walk into the room
+        Audio.play_walk({ door = was_new })
         return World.rooms[root_id].description
     end
 
@@ -192,8 +191,7 @@ local function cd(state, args)
             state.visited[prev] = true
             World.check_unlocks(state)
             Audio.set_room(prev)
-            Audio.play("step")
-            Audio.play_delayed("step", 0.19)
+            Audio.play_walk() -- `cd -` always goes somewhere you've already been
             return room_path(prev) .. "\n" .. World.rooms[prev].description
         elseif comp == ".." then
             local parent = get_parent(cursor)
@@ -258,13 +256,12 @@ local function cd(state, args)
     World.check_unlocks(state)
     Audio.set_room(cursor)
     if badge_used then
+        -- The reader beeps first, then the door and the walk in behind it.
         Audio.play("badge_ok")
-    elseif was_new then
-        Audio.play("door_new")
+        Audio.play_walk({ door = was_new, delay = 0.3 })
     else
-        Audio.play("step")
+        Audio.play_walk({ door = was_new })
     end
-    Audio.play_delayed("step", 0.2) -- second footfall: you walk into the room
     return World.rooms[cursor].description
 end
 

@@ -68,18 +68,25 @@ M.SOUNDS = {
 	popup_open = { files = { "assets/audio/world/popup_open.ogg" }, volume = 0.5 },
 	popup_close = { files = { "assets/audio/world/popup_close.ogg" }, volume = 0.5 },
 
+	-- Eight recorded footfalls (Kenney RPG Audio, CC0 — see assets/audio/CREDITS.md),
+	-- level-matched to each other so the random pick never jumps out. A room change
+	-- plays several of these in sequence, so variety matters more than it used to.
 	step = {
 		files = {
-			"assets/audio/world/step.ogg",
 			"assets/audio/world/step_1.ogg",
 			"assets/audio/world/step_2.ogg",
 			"assets/audio/world/step_3.ogg",
 			"assets/audio/world/step_4.ogg",
+			"assets/audio/world/step_5.ogg",
+			"assets/audio/world/step_6.ogg",
+			"assets/audio/world/step_7.ogg",
+			"assets/audio/world/step_8.ogg",
 		},
 		volume = 0.4,
 		pitch = { 0.94, 1.06 },
 	},
-	door_new = { files = { "assets/audio/world/door_new.ogg" }, volume = 0.55 },
+	-- Real wooden door: latch, swing, creak tail (~0.9s). Only on a first visit.
+	door_open = { files = { "assets/audio/world/door_open.ogg" }, volume = 0.6 },
 	locked = { files = { "assets/audio/world/locked.ogg" }, volume = 0.5 },
 	badge_ok = { files = { "assets/audio/world/badge_ok.ogg" }, volume = 0.55 },
 	search = { files = { "assets/audio/world/search.ogg" }, volume = 0.45 },
@@ -122,6 +129,11 @@ local proto = {}
 
 -- group -> list of currently-playing clones, so stop_group can cut them off.
 local active_by_group = {}
+
+-- id -> index last picked from its `files` list. A run of footsteps that lands
+-- on the same sample twice reads as an echo rather than a second foot, so the
+-- pick is random-without-immediate-repeat.
+local last_pick = {}
 
 -- One-shot sounds queued to fire after a delay, drained by M.update. Used for the
 -- trailing footstep so a room change reads as a couple of steps, not one tap.
@@ -229,7 +241,13 @@ function M.play(id, opts)
 	end
 	opts = opts or {}
 
-	local src = list[math.random(#list)]:clone()
+	local idx = math.random(#list)
+	if #list > 1 and idx == last_pick[id] then
+		idx = idx % #list + 1
+	end
+	last_pick[id] = idx
+
+	local src = list[idx]:clone()
 	local vol = (opts.volume or def.volume or 1.0) * M.sfx_volume * M.volume_scale
 	src:setVolume(vol)
 
@@ -258,6 +276,39 @@ function M.play_delayed(id, delay, opts)
 		return
 	end
 	delayed[#delayed + 1] = { id = id, t = delay or 0, opts = opts }
+end
+
+-- Walking cue for a room change. Tuning lives here, not in the command layer.
+M.FOOTSTEP_COUNT = 4 -- footfalls per room change
+M.FOOTSTEP_GAP = 0.27 -- seconds between them (an unhurried walking pace)
+M.FOOTSTEP_JITTER = 0.02 -- ± wobble, so a run of steps isn't metronomic
+M.DOOR_LEAD = 0.34 -- door_open is ~0.9s; you start walking as it swings
+
+-- Play a room change: `opts.door` prefixes the footfalls with the door opening
+-- (a first visit), otherwise you just walk in. `opts.delay` pushes the whole
+-- cue back, which is how the badge beep gets to land before the door does.
+function M.play_walk(opts)
+	opts = opts or {}
+	local t = opts.delay or 0
+
+	if opts.door then
+		if t <= 0 then
+			M.play("door_open")
+		else
+			M.play_delayed("door_open", t)
+		end
+		t = t + M.DOOR_LEAD
+	end
+
+	for i = 1, (opts.steps or M.FOOTSTEP_COUNT) do
+		local at = t + (i - 1) * M.FOOTSTEP_GAP
+			+ (math.random() * 2 - 1) * M.FOOTSTEP_JITTER
+		if at <= 0 then
+			M.play("step")
+		else
+			M.play_delayed("step", at)
+		end
+	end
 end
 
 -- Look up SPRITE_SOUNDS[sprite] (or .default) and play the id for `event`

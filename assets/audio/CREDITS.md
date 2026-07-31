@@ -21,6 +21,16 @@ Three files are marked **synthesized (this repo)** below — `ui/crt_on.ogg`,
 with `ffmpeg` (the "Original file" column gives the recipe) and are released CC0
 along with everything else; no third-party sample is involved.
 
+The room-change sounds (`world/step_*.ogg`, `world/door_open.ogg`) were
+re-sourced from Kenney's **RPG Audio** pack, replacing `world/step.ogg` +
+`step_1..4.ogg` (Impact Sounds) and `world/door_new.ogg` (Sci-fi Sounds). The
+old ones measured badly: the footsteps carried 99% of their energy below 150 Hz
+with nothing at all above 500 Hz — a muffled kick drum, no floor contact — and
+`door_new.ogg` was 88% above 6 kHz, a synth hiss with no latch or hinge in it.
+The RPG Audio files are real recordings of a shoe on a floor and a wooden door.
+The eight footsteps are RMS-matched to each other and share one gain (so the
+random pick never jumps out), and everything sits at or below 0.89 peak.
+
 ## Sources
 
 | Pack / page | Author | License | URL |
@@ -33,6 +43,7 @@ along with everything else; no third-party sample is involved.
 | Digital Audio | Kenney | CC0 | https://kenney.nl/assets/digital-audio |
 | Sci-fi Sounds | Kenney | CC0 | https://kenney.nl/assets/sci-fi-sounds |
 | Impact Sounds | Kenney | CC0 | https://kenney.nl/assets/impact-sounds |
+| RPG Audio | Kenney | CC0 | https://kenney.nl/assets/rpg-audio |
 | Opening and Closing a Map Sounds | Spring Spring | CC0 | https://opengameart.org/content/opening-and-closing-a-map-sounds |
 | Book Flip Sounds | Voltiment555 | CC0 | https://opengameart.org/content/book-flip-sounds |
 | Loopable Dungeon Ambience | JaggedStone | CC0 | https://opengameart.org/content/loopable-dungeon-ambience |
@@ -80,12 +91,15 @@ along with everything else; no third-party sample is involved.
 | slack_blip.ogg | Kenney Digital Audio | twoTone1.ogg | CC0 |
 | popup_open.ogg | Kenney Interface Sounds | open_003.ogg | CC0 |
 | popup_close.ogg | Kenney Interface Sounds | close_003.ogg | CC0 |
-| step.ogg | Kenney Impact Sounds | footstep_wood_000.ogg | CC0 |
-| step_1.ogg | Kenney Impact Sounds | footstep_wood_001.ogg | CC0 |
-| step_2.ogg | Kenney Impact Sounds | footstep_wood_002.ogg | CC0 |
-| step_3.ogg | Kenney Impact Sounds | footstep_wood_003.ogg | CC0 |
-| step_4.ogg | Kenney Impact Sounds | footstep_wood_004.ogg | CC0 |
-| door_new.ogg | Kenney Sci-fi Sounds | doorOpen_000.ogg | CC0 |
+| step_1.ogg | Kenney RPG Audio | footstep00.ogg (level-matched) | CC0 |
+| step_2.ogg | Kenney RPG Audio | footstep01.ogg (level-matched) | CC0 |
+| step_3.ogg | Kenney RPG Audio | footstep02.ogg (level-matched) | CC0 |
+| step_4.ogg | Kenney RPG Audio | footstep03.ogg (level-matched) | CC0 |
+| step_5.ogg | Kenney RPG Audio | footstep04.ogg (level-matched) | CC0 |
+| step_6.ogg | Kenney RPG Audio | footstep06.ogg (level-matched) | CC0 |
+| step_7.ogg | Kenney RPG Audio | footstep07.ogg (level-matched) | CC0 |
+| step_8.ogg | Kenney RPG Audio | footstep08.ogg (level-matched) | CC0 |
+| door_open.ogg | Kenney RPG Audio | doorOpen_1.ogg (peak-normalized) | CC0 |
 | locked.ogg | Kenney Sci-fi Sounds | forceField_002.ogg | CC0 |
 | badge_ok.ogg | Kenney Interface Sounds | confirmation_004.ogg | CC0 |
 | search.ogg | Kenney Digital Audio | phaserUp2.ogg | CC0 |
