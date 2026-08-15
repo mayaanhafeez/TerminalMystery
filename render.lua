@@ -491,20 +491,18 @@ function M.load()
 		end
 	end
 
-	-- Room-specific 32x32 floor tiles; related spaces share a material.
+	-- Floor tiles (16×16 NES PNGs). The Series C rooms reuse the manor floor
+	-- art from the room each one replaces; new rooms fall back to solid color.
 	local FLOOR_ASSET = {
-		foyer = "assets/rooms/wood-floor.png",
-		home_office = "assets/rooms/wood-floor.png",
-		den = "assets/rooms/carpet-floor.png",
-		[".closet"] = "assets/rooms/raised-floor.png",
-		sunroom = "assets/rooms/sunroom-floor.png",
-		cellar = "assets/rooms/stone-floor.png",
-		garage = "assets/rooms/stone-floor.png",
-		game_room = "assets/rooms/carpet-floor.png",
-		server_room = "assets/rooms/raised-floor.png",
+		foyer = "foyer",
+		home_office = "library",
+		den = "study",
+		sunroom = "conservatory",
+		cellar = "cellar",
+		garage = "bedroom",
 	}
-	for room_id, path in pairs(FLOOR_ASSET) do
-		local img = load_img(path, "nearest")
+	for room_id, asset in pairs(FLOOR_ASSET) do
+		local img = load_img("assets/sprites/floor/" .. asset .. ".png", "nearest")
 		if img then
 			M.floor_tiles[room_id] = img
 		end

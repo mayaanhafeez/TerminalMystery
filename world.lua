@@ -79,7 +79,7 @@ logged into Slack.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/wood-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =1, h =2},
         ["W"] = "assets/foyer-wall.png",
         ["w"] = {path = "assets/foyer-wall.png", w=1, h=-10},
@@ -165,7 +165,7 @@ A terminal window shows a list of recently-cloned repos.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/wood-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -232,7 +232,7 @@ a service closet stands very slightly ajar.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/carpet-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -286,7 +286,7 @@ was crumpled up and dropped in the corner in a hurry.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/raised-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -352,7 +352,7 @@ A spare guest badge has been left on the counter.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/sunroom-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -415,7 +415,7 @@ white is wedged face-down between two of the racks.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/stone-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -480,7 +480,7 @@ A GitHub Actions run history is still up on the screen.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/stone-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -546,7 +546,7 @@ A printout is pinned to the side of the cabinet.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/carpet-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
@@ -616,7 +616,7 @@ spreadsheet, and a raw access log.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/foyer-floor.png",
+        ["F"] = "assets/rooms/raised-floor.png",
         ["D"] = {path = "assets/foyer-door.png", w =2, h =1},
         ["W"] = "assets/foyer-wall.png",
       },
