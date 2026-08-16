@@ -351,17 +351,13 @@ local function load_img(path, filter)
 end
 
 local function get_tile(path)
-  if M.tile_cache[path] then
-    return M.tile_cache[path]
-  else
-    local img = load_img(path, "nearest")
-    if img == nil then
-      M.tile_cache[path] = false
-    else
-      M.tile_cache[path] = img
-    end
+  if M.tile_cache[path] ~= nil then
     return M.tile_cache[path]
   end
+
+  local img = load_img(path, "nearest")
+  M.tile_cache[path] = img or false
+  return M.tile_cache[path]
 end
 
 
@@ -541,7 +537,7 @@ function M.load()
 	end
 
 	M.room_canvas = love.graphics.newCanvas(ROOM_VW, ROOM_VH)
-	M.room_canvas:setFilter("linear", "linear")
+	M.room_canvas:setFilter("nearest", "nearest")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -1050,16 +1046,18 @@ local function draw_minimap(state, mx, my, mw, mh)
 end
 
 local function draw_grid_tiles(tiles, gx, gy, gw, gh)
-  if not tiles.layers then
-    return nil
-  elseif #tiles.layers[1] == 0 or #tiles.layers[1][1] == 0 then
-    return nil
-  else
+  if not tiles.legend or not tiles.layers or not tiles.layers[1]
+      or not tiles.layers[1][1] or #tiles.layers[1][1] == 0 then
+    return
+  end
+
     local cols = #tiles.layers[1][1]
     local rows = #tiles.layers[1]
     local cell = math.min(gw/cols, gh/rows)
     for _, layer in ipairs(tiles.layers) do
+      if #layer ~= rows then return end
       for row = 1, rows do
+        if type(layer[row]) ~= "string" or #layer[row] ~= cols then return end
         for col =1, cols do
           local e = tiles.legend[layer[row]:sub(col, col)]
           local path
@@ -1096,7 +1094,6 @@ local function draw_grid_tiles(tiles, gx, gy, gw, gh)
         end
       end
     end
-  end
 end
 
 -- Draw the main 2D top-down room view. Renders into the room canvas at the

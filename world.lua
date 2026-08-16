@@ -79,61 +79,30 @@ logged into Slack.]],
 		},
     tiles = {
       legend = {
-        ["F"] = "assets/rooms/wood-floor.png",
-        ["D"] = {path = "assets/foyer-door.png", w =1, h =2},
-        ["W"] = "assets/foyer-wall.png",
-        ["w"] = {path = "assets/foyer-wall.png", w=1, h=-10},
-        ["B"] = {path = "assets/launch banner.png", w = 4, h =2},
-        ["C"] = {path = "assets/Coat rack.png", w = 1, h = 1},
-        ["O"] = {path = "assets/Console.png", w = 3, h = 3},
+        ["F"] = "assets/generated/tiles/wood_floor.png",
+        ["W"] = "assets/generated/tiles/glass_window.png",
+        ["D"] = { path = "assets/generated/tiles/standard_door.png", w = 1, h = 2 },
+        ["R"] = { path = "assets/generated/entrance_hall/runner_rug.png", w = 2, h = 3 },
+        ["B"] = { path = "assets/generated/entrance_hall/launch_banner.png", w = 2, h = 1 },
+        ["P"] = "assets/generated/entrance_hall/decorative_plant.png",
+        ["C"] = { path = "assets/generated/entrance_hall/coat_rack.png", w = 1, h = 2 },
+        ["T"] = { path = "assets/generated/entrance_hall/console_table.png", w = 2, h = 1 },
       },
       layers = {
         {
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
-        "FFFFFF",
+          "FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF",
+          "FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF",
         },
         {
-        "wwwwww",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
+          ".W..W.", "......", "..R...", "......", "......",
+          "......", "......", "......", "D....D",
         },
         {
-        ".D..D.",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
-        "......",
+          "..B...", "......", "......", "P....P", "......",
+          "C.....", "......", "......", "..T...",
         },
-        {
-        ".B....",
-        "......",
-        "......",
-        "......",
-        "......",
-        "C.....",
-        "......",
-        "......",
-        "....O.",
-        },
+      },
     },
-	},
 	},
 
 	home_office = {
@@ -151,11 +120,6 @@ A terminal window shows a list of recently-cloned repos.]],
 		floor = { 0.28, 0.22, 0.14 },
 		floor_tint = { 0.04, 0.16, 0.04, 0.50 },
 		rug = true,
-		furniture = {
-			{ "shelf_full", 0.14, 205 },
-			{ "painting", 0.50, 82 },
-			{ "shelf_empty", 0.86, 205 },
-		},
 		items = {
 			{ ref = "draft_email", x = 0.35, y = 0.55 },
 			{ ref = "repo_log", x = 0.70, y = 0.35 },
@@ -221,10 +185,6 @@ a service closet stands very slightly ajar.]],
 		wall = { 0.16, 0.14, 0.18 },
 		floor = { 0.36, 0.30, 0.26 },
 		floor_tint = { 0.20, 0.14, 0.26, 0.35 },
-		furniture = {
-			{ "mirror", 0.28, 215 },
-			{ "dresser", 0.82, 150 },
-		},
 		items = {
 			{ ref = "victim", x = 0.50, y = 0.40 },
 			{ ref = "party_statements", x = 0.25, y = 0.65 },
@@ -341,11 +301,6 @@ A spare guest badge has been left on the counter.]],
 		wall = { 0.12, 0.22, 0.20 },
 		floor = { 0.46, 0.50, 0.40 },
 		floor_tint = { 0.14, 0.32, 0.28, 0.30 },
-		furniture = {
-			{ "dresser_flower", 0.10, 140 },
-			{ "clock", 0.50, 72 },
-			{ "painting", 0.88, 82 },
-		},
 		items = {
 			{ ref = "espresso_bar", x = 0.38, y = 0.45 },
 			{ ref = "keycard", x = 0.68, y = 0.62 },
@@ -406,9 +361,6 @@ white is wedged face-down between two of the racks.]],
 		wall = { 0.09, 0.08, 0.09 },
 		floor = { 0.20, 0.18, 0.16 },
 		floor_tint = { 0.02, 0.02, 0.03, 0.75 },
-		furniture = {
-			{ "armoire", 0.50, 170 },
-		},
 		items = {
 			{ ref = "badge", x = 0.35, y = 0.55 },
 			{ ref = "cellar_access_log", x = 0.65, y = 0.38 },
@@ -470,10 +422,6 @@ pushing a hotfix.
 A GitHub Actions run history is still up on the screen.]],
 		floor_tint = { 0.78, 0.55, 0.30, 0.25 },
 		rug = true,
-		furniture = {
-			{ "dresser_flower", 0.10, 150 },
-			{ "mirror", 0.70, 215 },
-		},
 		items = {
 			{ ref = "deploy_log", x = 0.42, y = 0.55 },
 			{ ref = "dosage_log", x = 0.68, y = 0.42 },
@@ -535,11 +483,6 @@ A printout is pinned to the side of the cabinet.]],
 		wall = { 0.14, 0.12, 0.20 },
 		floor = { 0.30, 0.26, 0.34 },
 		floor_tint = { 0.20, 0.10, 0.30, 0.30 },
-		furniture = {
-			{ "clock", 0.18, 72 },
-			{ "painting", 0.52, 82 },
-			{ "mirror", 0.84, 215 },
-		},
 		items = {
 			{ ref = "office_meme", x = 0.50, y = 0.55 },
 			{ ref = "slack_grep_help", x = 0.30, y = 0.35 },
@@ -604,10 +547,6 @@ spreadsheet, and a raw access log.]],
 		wall = { 0.10, 0.12, 0.14 },
 		floor = { 0.16, 0.18, 0.20 },
 		floor_tint = { 0.10, 0.14, 0.20, 0.45 },
-		furniture = {
-			{ "armoire", 0.20, 170 },
-			{ "shelf_empty", 0.80, 205 },
-		},
 		items = {
 			{ ref = "billing_audit", x = 0.24, y = 0.42 },
 			{ ref = "slack_final", x = 0.74, y = 0.40 },
@@ -658,6 +597,156 @@ spreadsheet, and a raw access log.]],
 	},
 	},
 }
+
+local GENERATED = "assets/generated/"
+
+local function block_tiles(floor_path, legend, architecture, furniture)
+	legend.F = floor_path
+	return {
+		legend = legend,
+		layers = {
+			{
+				"FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF",
+				"FFFFFF", "FFFFFF", "FFFFFF", "FFFFFF",
+			},
+			architecture,
+			furniture,
+		},
+	}
+end
+
+raw.home_office.tiles = block_tiles(GENERATED .. "tiles/wood_floor.png", {
+	W = GENERATED .. "tiles/interior_wall.png",
+	R = { path = GENERATED .. "tiles/neutral_rug.png", w = 2, h = 2 },
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	B = { path = GENERATED .. "home_office/full_bookcase.png", w = 1, h = 2 },
+	E = { path = GENERATED .. "home_office/empty_shelf.png", w = 1, h = 2 },
+	M = { path = GENERATED .. "home_office/triple_monitor_workstation.png", w = 3, h = 1 },
+	T = { path = GENERATED .. "home_office/standing_desk.png", w = 3, h = 1 },
+	S = GENERATED .. "home_office/beanbag.png",
+	O = GENERATED .. "home_office/office_chair.png",
+}, {
+	"WWWWWW", "......", "..R...", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"B....E", "......", "..M...", "..T...", "......",
+	"S...O.", "......", "......", "......",
+})
+
+raw.den.tiles = block_tiles(GENERATED .. "tiles/carpet_floor.png", {
+	W = GENERATED .. "tiles/dark_utility_wall.png",
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	S = { path = GENERATED .. "den/wall_screen.png", w = 2, h = 1 },
+	A = { path = GENERATED .. "den/av_rack.png", w = 1, h = 2 },
+	C = { path = GENERATED .. "den/sectional_couch.png", w = 3, h = 1 },
+	B = { path = GENERATED .. "den/covered_body.png", w = 2, h = 1 },
+	T = { path = GENERATED .. "den/coffee_table.png", w = 2, h = 1 },
+}, {
+	"WWWWWW", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"..S...", "A.....", "......", "C.....", "......",
+	"..B...", "....T.", "......", "......",
+})
+
+raw[".closet"].tiles = block_tiles(GENERATED .. "tiles/raised_server_floor.png", {
+	W = GENERATED .. "tiles/dark_utility_wall.png",
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	R = { path = GENERATED .. "av_closet/network_rack.png", w = 1, h = 2 },
+	C = GENERATED .. "av_closet/cable_bundle.png",
+	B = GENERATED .. "av_closet/wastebasket.png",
+}, {
+	"WWWWWW", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"R.....", "......", "..C...", "......", "....B.",
+	"......", "......", "......", "......",
+})
+
+raw.sunroom.tiles = block_tiles(GENERATED .. "tiles/sunroom_floor.png", {
+	G = GENERATED .. "tiles/glass_wall.png",
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	L = GENERATED .. "sunroom/string_lights.png",
+	E = { path = GENERATED .. "sunroom/espresso_counter.png", w = 2, h = 1 },
+	S = { path = GENERATED .. "sunroom/sideboard.png", w = 2, h = 1 },
+	P = GENERATED .. "sunroom/potted_plant.png",
+	T = GENERATED .. "sunroom/cafe_stool.png",
+	M = GENERATED .. "sunroom/espresso_machine.png",
+}, {
+	"GGGGGG", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"L....L", "......", "..E.M.", "..S...", "P.....",
+	"......", "T...T.", "......", "......",
+})
+
+raw.cellar.tiles = block_tiles(GENERATED .. "tiles/stone_floor.png", {
+	W = GENERATED .. "tiles/dark_utility_wall.png",
+	D = { path = GENERATED .. "tiles/smart_lock_door.png", w = 2, h = 1 },
+	S = { path = GENERATED .. "wine_cellar/stair_tile.png", w = 2, h = 1 },
+	R = { path = GENERATED .. "wine_cellar/wine_rack_full.png", w = 1, h = 2 },
+	T = GENERATED .. "wine_cellar/terminal_station.png",
+	L = GENERATED .. "wine_cellar/wall_lamp.png",
+}, {
+	"WWWWWW", "......", "......", "......", "......",
+	"......", "......", "..S...", "..D...",
+}, {
+	"R....R", "......", "......", "..T.L.", "......",
+	"R....R", "......", "......", "......",
+})
+
+raw.garage.tiles = block_tiles(GENERATED .. "tiles/stone_floor.png", {
+	G = { path = GENERATED .. "garage/garage_door.png", w = 2, h = 2 },
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	S = { path = GENERATED .. "garage/storage_shelf.png", w = 1, h = 2 },
+	C = { path = GENERATED .. "garage/tool_cabinet.png", w = 1, h = 2 },
+	M = { path = GENERATED .. "garage/three_monitor_stand.png", w = 3, h = 1 },
+	T = { path = GENERATED .. "garage/folding_table.png", w = 3, h = 1 },
+	H = GENERATED .. "garage/folding_chair.png",
+	K = GENERATED .. "garage/mechanical_keyboard.png",
+	E = GENERATED .. "garage/energy_drink.png",
+}, {
+	"G..G..", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"S....C", "......", "......", ".M....", ".T....",
+	"..K.E.", "..H...", "......", "......",
+})
+
+raw.game_room.tiles = block_tiles(GENERATED .. "tiles/carpet_floor.png", {
+	W = GENERATED .. "tiles/interior_wall.png",
+	D = { path = GENERATED .. "tiles/standard_door.png", w = 2, h = 1 },
+	A = { path = GENERATED .. "game_room/arcade_cabinet.png", w = 1, h = 2 },
+	N = GENERATED .. "game_room/neon_sign.png",
+	C = { path = GENERATED .. "game_room/couch.png", w = 3, h = 1 },
+	T = { path = GENERATED .. "game_room/coffee_table.png", w = 2, h = 1 },
+	L = GENERATED .. "game_room/balatro_laptop.png",
+	P = GENERATED .. "game_room/framed_game_poster.png",
+}, {
+	"WWWWWW", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"A.P..N", "......", "......", ".C....", "......",
+	"..T...", "....L.", "......", "......",
+})
+
+raw.server_room.tiles = block_tiles(GENERATED .. "tiles/raised_server_floor.png", {
+	W = GENERATED .. "tiles/dark_utility_wall.png",
+	D = { path = GENERATED .. "tiles/keypad_security_door.png", w = 2, h = 1 },
+	R = { path = GENERATED .. "server_room/server_rack_a.png", w = 1, h = 2 },
+	S = { path = GENERATED .. "server_room/server_rack_b.png", w = 1, h = 2 },
+	M = GENERATED .. "server_room/monitor_laptop.png",
+	T = { path = GENERATED .. "server_room/workstation_desk.png", w = 3, h = 1 },
+	F = GENERATED .. "server_room/cooling_fan.png",
+	C = GENERATED .. "server_room/rolling_chair.png",
+	K = GENERATED .. "server_room/keypad_reader.png",
+}, {
+	"WWWWWW", "......", "......", "......", "......",
+	"......", "......", "......", "..D...",
+}, {
+	"R....S", "......", "......", "..M...", ".T....",
+	"......", "F...C.", "....K.", "......",
+})
 -- Normalize raw definitions into M.rooms.
 -- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
 -- Each item gets: id, filename, room, plus any fields from the definition.
