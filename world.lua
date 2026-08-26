@@ -747,6 +747,40 @@ raw.server_room.tiles = block_tiles(GENERATED .. "tiles/raised_server_floor.png"
 	"R....S", "......", "......", "..M...", ".T....",
 	"......", "F...C.", "....K.", "......",
 })
+
+local FULL_ROOMS = "assets/full_rooms/"
+
+-- Hand-painted whole-room art. Each PNG is the full 6x9 grid (192x288 px, one
+-- 32x32 source tile per cell), so it drops straight into the existing tile
+-- renderer as a single 6-wide, 9-tall legend entry on an otherwise empty grid.
+-- Rooms listed here override the block_tiles composition above; the block
+-- definitions stay in place for the rooms that still lack full-room art.
+local function full_room_tiles(path)
+	return {
+		legend = {
+			A = { path = FULL_ROOMS .. path, w = 6, h = 9 },
+		},
+		-- The art occupies the floor layer; the architecture and furniture
+		-- layers stay empty so every room keeps the same three-layer shape.
+		layers = {
+			{
+				"A.....", "......", "......", "......", "......",
+				"......", "......", "......", "......",
+			},
+			{
+				"......", "......", "......", "......", "......",
+				"......", "......", "......", "......",
+			},
+			{
+				"......", "......", "......", "......", "......",
+				"......", "......", "......", "......",
+			},
+		},
+	}
+end
+
+raw.foyer.tiles = full_room_tiles("foyer.png")
+raw.home_office.tiles = full_room_tiles("home_office.png")
 -- Normalize raw definitions into M.rooms.
 -- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
 -- Each item gets: id, filename, room, plus any fields from the definition.
