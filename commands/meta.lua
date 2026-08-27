@@ -83,8 +83,13 @@ local function help(state, args)
     table.insert(lines, "  chmod <mode> <target>    set permissions (chmod +w <file> makes it writable)")
     table.insert(lines, "  sed 's/old/new/' <file>  print the file with a substitution applied")
     table.insert(lines, "  sed -i 's/old/new/g' <f> edit the file in place (needs chmod +w first)")
-    table.insert(lines, "  mute                     toggle all sound on/off")
-    table.insert(lines, "  volume <0-100>           set the volume (no argument reports it)")
+    -- Skipped in a terminal-only run: there is no room panel to map and no
+    -- audio to level, so these are not commands there (see commands/init.lua).
+    if not state.terminal_only then
+        table.insert(lines, "  map [on|off]             show or hide the room map")
+        table.insert(lines, "  mute                     toggle all sound on/off")
+        table.insert(lines, "  volume <0-100>           set the volume (no argument reports it)")
+    end
     table.insert(lines, "")
     table.insert(lines, "Tip: filenames you find with `ls` are case-sensitive.")
     table.insert(lines, "Tip: `accuse` takes a surname or a full name.")
@@ -98,6 +103,30 @@ end
 local function mute(_, _)
     Audio.set_enabled(not Audio.enabled)
     return Audio.enabled and "Sound on." or "Sound off."
+end
+
+-- `map`, `map on`, `map off` — the room-panel map overlay. Drives the same
+-- state flag as the Ctrl/Cmd+M shortcut, so the two never disagree.
+local function map(state, args)
+    local arg = args[1] and args[1]:lower()
+    local shown = not state.minimap_hidden
+    if arg == nil then
+        state.minimap_hidden = shown
+        return shown and "Map disabled" or "Map enabled"
+    elseif arg == "on" then
+        if shown then
+            return "Map already enabled"
+        end
+        state.minimap_hidden = false
+        return "Map enabled"
+    elseif arg == "off" then
+        if not shown then
+            return "Map already disabled"
+        end
+        state.minimap_hidden = true
+        return "Map disabled"
+    end
+    return "Usage: map [on|off]"
 end
 
 local function volume(_, args)
@@ -206,4 +235,4 @@ local function accuse(state, args)
         .. "(Keep looking. The truth is in the evidence.)"
 end
 
-return { help = help, echo = echo, exit = exit, accuse = accuse, vim = vim, vi=vi, nvim = nvim, emacs=emacs, nano=nano, mute = mute, volume = volume}
+return { help = help, echo = echo, exit = exit, accuse = accuse, vim = vim, vi=vi, nvim = nvim, emacs=emacs, nano=nano, mute = mute, volume = volume, map = map}

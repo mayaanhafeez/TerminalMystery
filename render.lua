@@ -34,6 +34,11 @@ M.room_x = 760
 M.room_y = 0
 M.room_w = 520
 M.room_h = 780
+-- Canvas px -> window px for the blitted room view (set by M.resize). The
+-- overlay pass uses these to place native-resolution text over canvas-space
+-- geometry.
+M.room_sx = 1
+M.room_sy = 1
 
 -- When true the room panel is dropped entirely and the terminal takes the whole
 -- window width. Chosen once per game on the mode-select screen and never toggled
@@ -45,6 +50,12 @@ M.terminal_only = false
 -- half instead. The game screen toggles this, then re-runs resize + rewraps.
 M.vim_open = false
 M.vim_x, M.vim_y, M.vim_w, M.vim_h = 0, 0, 0, 0
+
+local ROOM_BORDER = 16 -- pixel-art frame thickness around the room view
+
+-- Rebuilds the room-view fonts for a new panel scale. Defined further down,
+-- once the font-path helpers exist, but resize needs it as an upvalue.
+local load_room_fonts
 
 function M.resize(w, h)
 	M.W = w
@@ -61,6 +72,7 @@ function M.resize(w, h)
 		M.room_y = 0
 		M.vim_x, M.vim_y = M.TERM_W, 0
 		M.vim_w, M.vim_h = w - M.TERM_W, math.max(1, h - M.STATUS_H)
+		M.room_sx, M.room_sy = 1, 1
 		return
 	end
 	local avail_h = math.max(1, h - M.STATUS_H)
@@ -83,6 +95,11 @@ function M.resize(w, h)
 	-- while it's open.
 	M.vim_x, M.vim_y = M.room_x, M.room_y
 	M.vim_w, M.vim_h = M.room_w, M.room_h
+
+	local B = ROOM_BORDER
+	M.room_sx = (room_w - 2 * B) / ROOM_VW
+	M.room_sy = (room_h - 2 * B) / ROOM_VH
+	load_room_fonts(math.min(M.room_sx, M.room_sy))
 end
 
 -- Palette
@@ -95,17 +112,15 @@ local C = {
 	term_user = { 0.76, 0.82, 1.00 }, -- light blue-white (typed input)
 	prompt = { 0.42, 0.50, 0.78 }, -- muted blue
 	system = { 0.612, 0.812, 0.847 }, -- foam accent (system lines)
-	map_bg = { 0.10, 0.12, 0.16 },
-	map_border = { 0.16, 0.18, 0.22 },
-	room_unvisited = { 0.18, 0.20, 0.24 },
-	room_visited = { 0.32, 0.36, 0.44 },
+	map_border = { 0.22, 0.25, 0.38 },
 	room_current = { 0.95, 0.70, 0.25 },
-	room_text_dim = { 0.40, 0.42, 0.48 },
-	room_text = { 0.88, 0.88, 0.92 },
+	-- Map room names, in the terminal's blues: unvisited muted, visited the
+	-- same blue-white the terminal prints your own input in.
+	room_text_dim = { 0.42, 0.50, 0.78 },
+	room_text = { 0.76, 0.82, 1.00 },
 	room_text_curr = { 0.10, 0.10, 0.10 },
 	status_bg = { 0.122, 0.114, 0.180 }, -- surface #1f1d2e
 	status_text = { 0.68, 0.70, 0.82 }, -- subtle blue-grey
-	connection = { 0.42, 0.45, 0.55 },
 	win_overlay = { 0, 0, 0, 0.88 },
 	win_title = { 0.95, 0.85, 0.45 },
 	win_text = { 0.90, 0.95, 0.90 },
@@ -113,7 +128,14 @@ local C = {
 	-- Item box & label
 	item_box = { 0.90, 0.70, 0.20 },
 	item_box_border = { 0.70, 0.50, 0.10 },
-	item_label = { 1.00, 0.95, 0.70 },
+	item_label = { 1.00, 0.97, 0.86 },
+	-- Map plate. Deliberately see-through: it sits over the room art, and the
+	-- listing has to read without blanking out the wall behind it.
+	map_plate = { 0.055, 0.050, 0.086, 0.70 },
+	map_shadow = { 0, 0, 0, 0.28 },
+	map_branch = { 0.36, 0.42, 0.62 }, -- the |-- `-- tree glyphs (dim blue)
+	map_header = { 0.128, 0.118, 0.192, 0.78 },
+	map_header_text = { 0.52, 0.57, 0.75 },
 }
 
 local LINE_COLOURS = {
@@ -128,7 +150,7 @@ M.font_term = nil -- terminal panel + status bar (scaled by M.font_scale)
 M.font_big = nil -- headings / menu / title buttons (terminal font)
 M.font_small = nil -- terminal font, small
 M.font_room = nil -- room view item labels (pixel/Minecraft font)
-M.font_room_big = nil -- room view name banner (pixel font)
+M.font_room_big = nil -- pixel font, large; only the M.font_big fallback uses it now
 M.font_room_small = nil -- room view minimap labels (pixel font)
 M.font_mono = nil -- computer-log font (laptop/chat popups); loaded from font_mono.ttf
 M.font_mono_big = nil -- larger monospace for the boot screen / ASCII banner
@@ -342,6 +364,19 @@ local NES_SCALE = 3 -- each 16×16 floor tile rendered at 48×48 px
 
 local FURNITURE_H = 230 -- px reserved below the banner for back-wall furniture
 
+-- Canvas px from the top of the floor to the top of the item zone. A constant
+-- of its own rather than a sum of the pieces above it: item x/y are normalized
+-- into this zone and were placed against the room art by hand, so nothing that
+-- changes overhead may drag every icon up or down with it.
+local ITEM_ZONE_TOP = 298
+
+-- The eight neighbours a glyph is stamped into to give it a 1 px outline.
+local OUTLINE_OFFSETS = {
+	{ -1, -1 }, { 0, -1 }, { 1, -1 },
+	{ -1, 0 }, { 1, 0 },
+	{ -1, 1 }, { 0, 1 }, { 1, 1 },
+}
+
 local function load_img(path, filter)
 	local ok, img = pcall(love.graphics.newImage, path)
 	if ok then
@@ -387,6 +422,39 @@ local function load_terminal_font()
 	-- The status bar holds one line of terminal-font text, so its height must
 	-- track the (scaled) font or the text overflows at high zoom.
 	M.STATUS_H = math.ceil(M.font_term:getHeight() + 2 * M.STATUS_PAD_V)
+end
+
+-- Base point sizes for the room-view text. The room panel is a fixed-resolution
+-- canvas blitted at a slightly-under-1 scale, so anything drawn *into* it loses
+-- whole strokes off the pixel font's 1 px stems. The banner, item labels and
+-- minimap are therefore drawn over the blit at native window resolution, with
+-- their fonts rebuilt at (base * panel scale) so they still track the window.
+local ROOM_FONT_BASE = { label = 18, small = 13 }
+local room_font_px = {} -- last sizes built, so a resize drag doesn't rebuild
+
+function load_room_fonts(scale)
+	local path = pixel_font_path()
+	local changed = false
+	local px = {}
+	for slot, base in pairs(ROOM_FONT_BASE) do
+		px[slot] = math.max(8, math.floor(base * scale + 0.5))
+		if px[slot] ~= room_font_px[slot] then
+			changed = true
+		end
+	end
+	if not changed then
+		return
+	end
+	room_font_px = px
+	local slots = { label = "font_room", small = "font_room_small" }
+	for slot, field in pairs(slots) do
+		local font = path and love.graphics.newFont(path, px[slot])
+			or love.graphics.newFont(px[slot])
+		if path then
+			font:setFilter("nearest", "nearest")
+		end
+		M[field] = font
+	end
 end
 
 local function load_fixed_fonts()
@@ -908,18 +976,24 @@ end
 -- Leaves get consecutive integer x values; parents are averaged over children.
 -- y = 1-based depth from root. Guarantees minimum x-spacing of 1 between
 -- any two nodes at the same depth, so cells never overlap with room_pad > 0.
-local layout_cache, layout_grid_w, layout_grid_h
+-- The house as the lines of an ASCII directory listing, root first:
+--   entrance_hall
+--   |-- game_room
+--   `-- wine_cellar
+-- Cached; the shape of the house never changes within a run. Monocraft has no
+-- box-drawing glyphs, so the branches are ASCII — which is what `tree` falls
+-- back to anyway.
+local tree_cache
 
-local function build_layout()
-	if layout_cache then
-		return
+local function build_tree()
+	if tree_cache then
+		return tree_cache
 	end
 
-	-- Hidden rooms are never drawn on the map, so exclude them from the tree
-	-- entirely — otherwise a hidden child (e.g. .closet under the Den) adds an
-	-- extra depth row that renders as blank space under the visible cells.
-	local children = {}
-	local root_id
+	-- Hidden rooms stay off the map entirely, so they are left out of the tree
+	-- rather than filtered at draw time — a hidden child must not leave its
+	-- parent drawing a branch to nothing.
+	local children, root_id = {}, nil
 	for id, r in pairs(World.rooms) do
 		if not r.hidden then
 			children[id] = {}
@@ -933,115 +1007,91 @@ local function build_layout()
 			table.insert(children[r.parent], id)
 		end
 	end
+	-- Sorted by the name on screen, not the room id: `cellar` is displayed as
+	-- "wine_cellar", and a listing that reads out of alphabetical order looks
+	-- like a bug.
 	for _, list in pairs(children) do
-		table.sort(list)
+		table.sort(list, function(a, b)
+			return World.rooms[a].name < World.rooms[b].name
+		end)
 	end
 
-	local positions = {}
-	local leaf_count = 0
-	local max_depth = 0
+	local lines = {}
 
-	local function layout(id, depth)
-		if depth > max_depth then
-			max_depth = depth
-		end
+	local function walk(id, prefix, is_last, is_root)
+		lines[#lines + 1] = {
+			id = id,
+			prefix = is_root and "" or (prefix .. (is_last and "`-- " or "|-- ")),
+		}
 		local kids = children[id]
-		if #kids == 0 then
-			leaf_count = leaf_count + 1
-			positions[id] = { x = leaf_count, y = depth }
-		else
-			local x_sum = 0
-			for _, kid in ipairs(kids) do
-				layout(kid, depth + 1)
-				x_sum = x_sum + positions[kid].x
-			end
-			positions[id] = { x = x_sum / #kids, y = depth }
+		local kid_prefix = is_root and "" or (prefix .. (is_last and "    " or "|   "))
+		for i, kid in ipairs(kids) do
+			walk(kid, kid_prefix, i == #kids, false)
 		end
 	end
 
-	layout(root_id, 1)
-	layout_cache = positions
-	layout_grid_w = leaf_count
-	layout_grid_h = max_depth
+	walk(root_id, "", true, true)
+	tree_cache = lines
+	return lines
 end
 
--- Compute the screen rect of one minimap room cell given the minimap origin.
-local function minimap_room_rect(pos, mx, my, cell_w, cell_h, room_pad)
-	local cx = mx + (pos.x - 1) * cell_w
-	local cy = my + (pos.y - 1) * cell_h
-	return cx + room_pad, cy + room_pad, cell_w - 2 * room_pad, cell_h - 2 * room_pad
-end
+-- Draw the map with its top-left corner at (mx, my); it sizes itself to the
+-- listing. Rooms are named by their path segment, so the map doubles as a
+-- reminder of what to type at `cd`. The room you are standing in gets the same
+-- gold cell the old graph map used.
+local function draw_minimap(state, mx, my)
+	local lines = build_tree()
+	local font = M.font_room_small
+	local line_h = font:getHeight() + 3
+	local pad = 7
+	local radius = 4
+	local header_h = math.floor(font:getHeight() + 5)
 
--- Draw the minimap into the rectangle (mx, my, mw, mh).
-local function draw_minimap(state, mx, my, mw, mh)
-	build_layout()
+	local text_w = 0
+	for _, line in ipairs(lines) do
+		text_w = math.max(text_w, font:getWidth(line.prefix .. World.rooms[line.id].name))
+	end
+	local mw = math.max(text_w, font:getWidth("MAP") + 20) + 2 * pad
+	local body_y = my + header_h + pad
+	local mh = header_h + (#lines * line_h - 3) + 2 * pad
 
-	local cell_w = mw / layout_grid_w
-	local cell_h = mh / layout_grid_h
-	local room_pad = 4
+	love.graphics.setColor(C.map_shadow)
+	love.graphics.rectangle("fill", mx + 2, my + 3, mw, mh, radius, radius)
+	love.graphics.setColor(C.map_plate)
+	love.graphics.rectangle("fill", mx, my, mw, mh, radius, radius)
 
-	-- background
-	love.graphics.setColor(C.map_bg)
-	love.graphics.rectangle("fill", mx, my, mw, mh, 4, 4)
+	-- header strip: a rounded cap at the top, squared off along its lower edge
+	love.graphics.setColor(C.map_header)
+	love.graphics.rectangle("fill", mx + 1, my + 1, mw - 2, header_h, radius, radius)
+	love.graphics.rectangle("fill", mx + 1, my + header_h + 1 - radius, mw - 2, radius)
 	love.graphics.setColor(C.map_border)
 	love.graphics.setLineWidth(1)
-	love.graphics.rectangle("line", mx, my, mw, mh, 4, 4)
+	love.graphics.line(mx + 1, my + header_h + 0.5, mx + mw - 1, my + header_h + 0.5)
+	love.graphics.rectangle("line", mx + 0.5, my + 0.5, mw - 1, mh - 1, radius, radius)
 
-	-- connections (skip any edge that touches a hidden room)
-	love.graphics.setColor(C.connection)
-	love.graphics.setLineWidth(1)
-	local drawn = {}
-	for id, room in pairs(World.rooms) do
-		if not room.hidden then
-			for _, exit_id in ipairs(World.get_exits(id)) do
-				if not World.rooms[exit_id].hidden then
-					local key = (id < exit_id) and (id .. "|" .. exit_id) or (exit_id .. "|" .. id)
-					if not drawn[key] then
-						drawn[key] = true
-						local x1, y1, w1, h1 = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
-						local x2, y2, w2, h2 =
-							minimap_room_rect(layout_cache[exit_id], mx, my, cell_w, cell_h, room_pad)
-						love.graphics.line(x1 + w1 / 2, y1 + h1 / 2, x2 + w2 / 2, y2 + h2 / 2)
-					end
-				end
-			end
+	love.graphics.setFont(font)
+	love.graphics.setColor(C.map_header_text)
+	love.graphics.print("MAP", mx + pad, my + (header_h - font:getHeight()) / 2)
+
+	for i, line in ipairs(lines) do
+		local room = World.rooms[line.id]
+		local y = body_y + (i - 1) * line_h
+		local name_x = mx + pad + font:getWidth(line.prefix)
+		local name_w = font:getWidth(room.name)
+
+		love.graphics.setColor(C.map_branch)
+		love.graphics.print(line.prefix, mx + pad, y)
+
+		if state.current_room == line.id then
+			love.graphics.setColor(C.room_current)
+			love.graphics.rectangle("fill", name_x - 3, y - 1, name_w + 6, font:getHeight() + 2, 2, 2)
+			love.graphics.setColor(C.room_text_curr)
+		elseif state.visited[line.id] then
+			love.graphics.setColor(C.room_text)
+		else
+			love.graphics.setColor(C.room_text_dim)
 		end
-	end
-
-	-- room cells (skip hidden rooms)
-	for id, room in pairs(World.rooms) do
-		if not room.hidden then
-			local x, y, w, h = minimap_room_rect(layout_cache[id], mx, my, cell_w, cell_h, room_pad)
-			local is_current = (state.current_room == id)
-			local is_visited = state.visited[id] == true
-
-			local fill, text_color
-			if is_current then
-				fill, text_color = C.room_current, C.room_text_curr
-			elseif is_visited then
-				fill, text_color = C.room_visited, C.room_text
-			else
-				fill, text_color = C.room_unvisited, C.room_text_dim
-			end
-
-			love.graphics.setColor(fill)
-			love.graphics.rectangle("fill", x, y, w, h, 3, 3)
-			love.graphics.setColor(C.map_border)
-			love.graphics.setLineWidth(1)
-			love.graphics.rectangle("line", x, y, w, h, 3, 3)
-
-			love.graphics.setFont(M.font_room_small)
-			love.graphics.setColor(text_color)
-			-- A short 3-letter code (a leading "The" is dropped first), e.g.
-			-- "The Den" -> DEN, "Server Room" -> SER. `room.code` overrides.
-			-- Scaled down to fit narrow cells so it never truncates.
-			local base = room.name:gsub("^[Tt]he%s+", "")
-			local label = room.code or base:gsub("[^%w]", ""):upper():sub(1, 3)
-			local lw = M.font_room_small:getWidth(label)
-			local ls = math.min(1, (w - 4) / math.max(1, lw))
-			love.graphics.print(label, x + (w - lw * ls) / 2,
-				y + (h - M.font_room_small:getHeight() * ls) / 2, 0, ls, ls)
-		end
+		love.graphics.print(room.name, name_x, y)
 	end
 end
 
@@ -1096,8 +1146,32 @@ local function draw_grid_tiles(tiles, gx, gy, gw, gh)
     end
 end
 
+-- Canvas rect (in canvas-local coords) that item icons are spread across.
+-- Item x/y are normalized into it, so both the canvas pass (which draws the
+-- sprites) and the overlay pass (which draws the labels) derive positions here.
+local function item_zone()
+	local fx, fy = ROOM_BORDER, ROOM_BORDER
+	local fw, fh = ROOM_VW - 2 * ROOM_BORDER, ROOM_VH - 2 * ROOM_BORDER
+	local left = fx + M.PAD
+	local top = fy + ITEM_ZONE_TOP
+	return left, top, (fx + fw - M.PAD) - left, math.max(1, (fy + fh - 160) - top)
+end
+
+-- Centre of an item's icon, in canvas-local coords.
+local function item_center(item)
+	local left, top, w, h = item_zone()
+	return left + item.x * w, top + item.y * h
+end
+
+-- Canvas-local coords -> window coords, for the overlay pass.
+local function room_to_screen(cx, cy)
+	return M.room_x + ROOM_BORDER + cx * M.room_sx, M.room_y + ROOM_BORDER + cy * M.room_sy
+end
+
 -- Draw the main 2D top-down room view. Renders into the room canvas at the
 -- fixed virtual resolution; coords are canvas-local (0..ROOM_VW, 0..ROOM_VH).
+-- Text is deliberately absent: the canvas is blitted at a sub-1 scale that
+-- chews up a pixel font, so draw_room_overlay draws it at native resolution.
 local function draw_room_view(state)
 	local px = 0
 	local py = 0
@@ -1159,8 +1233,7 @@ local function draw_room_view(state)
 
   end
     -- ---- back-wall furniture ----
-    local BANNER_H = M.font_room_big:getHeight() + M.PAD
-    local fur_y = fy + BANNER_H + 6
+    local fur_y = fy + 6
     local furn = room_def.furniture
     if furn then
       love.graphics.setScissor(fx, fy, fw, fh)
@@ -1187,36 +1260,11 @@ local function draw_room_view(state)
 		love.graphics.line(fx, fy, fx, fy + fh)
 	end
 
-	-- ---- room name banner (full width, pinned to the top edge) ----
-	love.graphics.setColor(0, 0, 0, 0.52)
-	love.graphics.rectangle("fill", px, py, pw, BANNER_H)
-	love.graphics.setColor(wall[1] + 0.15, wall[2] + 0.15, wall[3] + 0.15, 0.6)
-	love.graphics.setLineWidth(1)
-	love.graphics.line(px + 8, py + BANNER_H, px + pw - 8, py + BANNER_H)
-
-	love.graphics.setFont(M.font_room_big)
-	love.graphics.setColor(C.status_text)
-	local rname = room_def.name
-	local rnw = M.font_room_big:getWidth(rname)
-	love.graphics.print(rname, px + (pw - rnw) / 2, py + (BANNER_H - M.font_room_big:getHeight()) / 2)
-
-	-- ---- items ----
+	-- ---- item icons (their labels come with the overlay) ----
 	local ITEM_PX = SPRITE_TARGET_PX
-
-	local ITEM_TOP = fy + BANNER_H + FURNITURE_H + M.PAD
-	local ITEM_BOTTOM = fy + fh - 160
-	local ITEM_LEFT = fx + M.PAD
-	local ITEM_RIGHT = fx + fw - M.PAD
-	local item_zone_w = ITEM_RIGHT - ITEM_LEFT
-	local item_zone_h = math.max(1, ITEM_BOTTOM - ITEM_TOP)
-
-	love.graphics.setFont(M.font_room)
-	local items = World.get_items_in_room(room_id)
-	for _, item in ipairs(items) do
-		local cx = ITEM_LEFT + item.x * item_zone_w
-		local cy = ITEM_TOP + item.y * item_zone_h
-		local ix = cx - ITEM_PX / 2
-		local iy = cy - ITEM_PX / 2
+	for _, item in ipairs(World.get_items_in_room(room_id)) do
+		local cx, cy = item_center(item)
+		local ix, iy = cx - ITEM_PX / 2, cy - ITEM_PX / 2
 
 		local spr = M.sprites[item.sprite]
 		if spr then
@@ -1229,28 +1277,39 @@ local function draw_room_view(state)
 			love.graphics.setLineWidth(2)
 			love.graphics.rectangle("line", ix, iy, ITEM_PX, ITEM_PX, 6, 6)
 		end
+	end
+end
 
+-- Everything in the room panel that is *text*, drawn over the blitted canvas at
+-- native window resolution so the pixel font keeps its full stems.
+local function draw_room_overlay(state)
+	local px = M.room_x + ROOM_BORDER
+	local py = M.room_y + ROOM_BORDER
+
+	-- ---- item labels ----
+	-- Outlined rather than boxed: an icon lands on whatever the room art puts
+	-- under it, and a bare glyph on a mid-tone floor is unreadable, but a plate
+	-- behind every label cuts the room up. A one-pixel skirt does the same job
+	-- and leaves the art alone.
+	love.graphics.setFont(M.font_room)
+	for _, item in ipairs(World.get_items_in_room(state.current_room)) do
+		local cx, cy = item_center(item)
+		local sx, sy = room_to_screen(cx, cy + SPRITE_TARGET_PX / 2)
 		local label = item.filename:gsub("%.%w+$", "")
-		local lw = M.font_room:getWidth(label)
-		local lx = cx - lw / 2
-		local ly = iy + ITEM_PX + 4
-		love.graphics.setColor(0, 0, 0, 0.65)
-		love.graphics.print(label, lx + 1, ly + 1)
+		local lx = sx - M.font_room:getWidth(label) / 2
+		local ly = sy + 5
+		love.graphics.setColor(0, 0, 0, 0.85)
+		for _, d in ipairs(OUTLINE_OFFSETS) do
+			love.graphics.print(label, lx + d[1], ly + d[2])
+		end
 		love.graphics.setColor(C.item_label)
 		love.graphics.print(label, lx, ly)
 	end
 
-	-- ---- minimap overlay (bottom-right, inset 8 px) ----
-	-- Toggled with Ctrl/Cmd+M. Wide enough that a 3-letter code fits a cell at
-	-- 1:1 (no muddy pixel-font scaling); only 2 rows tall now that hidden rooms
-	-- are excluded, so there's no blank strip under the cells.
+	-- ---- map (top-left corner). Toggled with Ctrl/Cmd+M. ----
+	-- Sits above the item zone, so it never collides with an icon or its label.
 	if not state.minimap_hidden then
-		local MM_W = 224
-		local MM_H = 92
-		local MM_INS = 8
-		local mm_x = px + pw - MM_W - MM_INS
-		local mm_y = py + ph - MM_H - MM_INS
-		draw_minimap(state, mm_x, mm_y, MM_W, MM_H)
+		draw_minimap(state, px + 10, py + 10)
 	end
 end
 
@@ -1916,8 +1975,6 @@ local function draw_popup(state)
 	end
 end
 
-local ROOM_BORDER = 16 -- pixel-art frame thickness around the room view
-
 -- A chunky beveled pixel frame around the room rect: dark outer/inner outlines,
 -- a wood-tone body, and a top-left highlight / bottom-right shadow bevel, plus
 -- little corner studs. Drawn in the margin left by insetting the room canvas.
@@ -1999,9 +2056,9 @@ function M.draw(state, term, best, vim)
 	if not M.terminal_only and not vim then
 		local B = ROOM_BORDER
 		love.graphics.setColor(1, 1, 1)
-		love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0,
-			(M.room_w - 2 * B) / ROOM_VW, (M.room_h - 2 * B) / ROOM_VH)
+		love.graphics.draw(M.room_canvas, M.room_x + B, M.room_y + B, 0, M.room_sx, M.room_sy)
 		draw_room_border(M.room_x, M.room_y, M.room_w, M.room_h)
+		draw_room_overlay(state)
 	end
 
 	draw_status_bar(state)

@@ -59,6 +59,12 @@ for k, v in pairs(Evidence)   do handlers[k] = v end
 for k, v in pairs(Items)      do handlers[k] = v end
 for k, v in pairs(Meta)       do handlers[k] = v end
 
+-- Commands with nothing to act on in a terminal-only run: it never draws the
+-- room panel, and screens/game.lua suppresses audio outright when it starts.
+-- They are unknown words in that mode rather than commands that take input and
+-- then do nothing.
+local FULL_VIEW_ONLY = { map = true, mute = true, volume = true }
+
 function M.execute(state, input)
     input = input:gsub("^%s+", ""):gsub("%s+$", "")
     if input == "" then return "" end
@@ -79,6 +85,9 @@ function M.execute(state, input)
     end
 
     local handler = handlers[cmd]
+    if state.terminal_only and FULL_VIEW_ONLY[cmd] then
+        handler = nil
+    end
     if not handler then
         Audio.play("error_tick")
         return "You mutter the word \"" .. cmd .. "\" under your breath.\n"

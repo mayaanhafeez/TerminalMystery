@@ -787,16 +787,28 @@ end
 
 raw.foyer.tiles = full_room_tiles("foyer.png")
 raw.home_office.tiles = full_room_tiles("home_office.png")
+-- `name` is the path segment, so it stays snake_case and never contains a
+-- space. The room-view banner wants prose, so derive a display title from it:
+-- "entrance_hall" -> "Entrance Hall". A room can override it with `title`.
+local function display_title(name)
+	return (name:gsub("_", " "):gsub("%S+", function(word)
+		return word:sub(1, 1):upper() .. word:sub(2)
+	end))
+end
+
 -- Normalize raw definitions into M.rooms.
--- Each room gets: id, name, parent, hidden, description, items (keyed by filename).
+-- Each room gets: id, name, title, parent, hidden, description, items
+-- (keyed by filename).
 -- Each item gets: id, filename, room, plus any fields from the definition.
 local function build_rooms()
   M.rooms = {}
   for id, def in pairs(raw) do
+    local name = def.name or (id:sub(1, 1):upper() .. id:sub(2))
     local room = {
       id = id,
       tiles = def.tiles,
-      name = def.name or (id:sub(1, 1):upper() .. id:sub(2)),
+      name = name,
+      title = def.title or display_title(name),
       parent = def.parent,
       hidden = def.hidden,
       description = def.description,
@@ -1071,6 +1083,7 @@ function M.new_state()
       vi = true,
       mute = true,
       volume = true,
+      map = true,
 		},
 		destroyed = {},
 		-- The vim scratch pad (vim.lua), one entry per line. Session-scoped: a

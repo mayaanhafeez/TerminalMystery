@@ -138,3 +138,96 @@ T.test("exit is not counted toward command_count", function()
     Commands.execute(state, "exit nosave")
     T.eq(state.command_count, 1)
 end)
+
+T.suite("meta — map")
+
+-- The map starts visible, so `minimap_hidden` starts false.
+T.test("bare map toggles, and reports the state it moved to", function()
+    local state = World.new_state()
+    T.eq(Meta.map(state, {}), "Map disabled")
+    T.eq(state.minimap_hidden, true)
+    T.eq(Meta.map(state, {}), "Map enabled")
+    T.eq(state.minimap_hidden, false)
+end)
+
+T.test("map on turns it on, and says so when it already was", function()
+    local state = World.new_state()
+    T.eq(Meta.map(state, { "on" }), "Map already enabled")
+    state.minimap_hidden = true
+    T.eq(Meta.map(state, { "on" }), "Map enabled")
+    T.eq(state.minimap_hidden, false)
+end)
+
+T.test("map off turns it off, and says so when it already was", function()
+    local state = World.new_state()
+    T.eq(Meta.map(state, { "off" }), "Map disabled")
+    T.eq(state.minimap_hidden, true)
+    T.eq(Meta.map(state, { "off" }), "Map already disabled")
+    T.eq(state.minimap_hidden, true)
+end)
+
+T.test("map arguments are case-insensitive", function()
+    local state = World.new_state()
+    T.eq(Meta.map(state, { "OFF" }), "Map disabled")
+    T.eq(Meta.map(state, { "On" }), "Map enabled")
+end)
+
+T.test("an unrecognized argument explains itself and changes nothing", function()
+    local state = World.new_state()
+    T.eq(Meta.map(state, { "sideways" }), "Usage: map [on|off]")
+    T.eq(state.minimap_hidden, false)
+end)
+
+T.test("map is reachable through execute and is unlocked from the start", function()
+    local state = World.new_state()
+    T.eq(Commands.execute(state, "map off"), "Map disabled")
+    T.eq(state.minimap_hidden, true)
+    T.eq(Commands.execute(state, "MAP ON"), "Map enabled")
+end)
+
+T.test("help lists map", function()
+    local state = World.new_state()
+    local out = Meta.help(state, {})
+    T.ok(out:find("map %[on|off%]"), "expected map to be listed in help")
+end)
+
+T.suite("meta — terminal-only mode drops the full-view commands")
+
+-- A terminal-only run never draws the room panel and starts with audio
+-- suppressed, so map/mute/volume have nothing to act on there.
+T.test("map, mute and volume are unknown words in terminal-only mode", function()
+    local state = World.new_state()
+    state.terminal_only = true
+    for _, cmd in ipairs({ "map", "map on", "mute", "volume 50" }) do
+        local out = Commands.execute(state, cmd)
+        T.ok(out:find("Nothing in the house responds"),
+            "expected `" .. cmd .. "` to be unknown in terminal-only mode")
+    end
+end)
+
+T.test("terminal-only mode leaves the map flag alone", function()
+    local state = World.new_state()
+    state.terminal_only = true
+    Commands.execute(state, "map off")
+    T.eq(state.minimap_hidden, false)
+end)
+
+T.test("they still work in full view", function()
+    local state = World.new_state()
+    T.eq(state.terminal_only, false)
+    T.eq(Commands.execute(state, "map off"), "Map disabled")
+end)
+
+T.test("help omits them in terminal-only mode and lists them in full view", function()
+    local state = World.new_state()
+    local full = Meta.help(state, {})
+    T.ok(full:find("map %[on|off%]"), "expected map in the full-view help")
+    T.ok(full:find("mute"), "expected mute in the full-view help")
+    T.ok(full:find("volume"), "expected volume in the full-view help")
+
+    state.terminal_only = true
+    local terminal = Meta.help(state, {})
+    T.ok(not terminal:find("map %[on|off%]"), "map should not be listed")
+    T.ok(not terminal:find("mute"), "mute should not be listed")
+    T.ok(not terminal:find("volume"), "volume should not be listed")
+end)
