@@ -110,7 +110,7 @@ local C = {
 	win_title = { 0.95, 0.85, 0.45 },
 	win_text = { 0.90, 0.95, 0.90 },
 	win_record = { 0.95, 0.50, 0.50 },
-	-- Item glow & label
+	-- Item box & label
 	item_box = { 0.90, 0.70, 0.20 },
 	item_box_border = { 0.70, 0.50, 0.10 },
 	item_label = { 1.00, 0.95, 0.70 },
@@ -336,7 +336,7 @@ local CRT_OVERLAY_SHADER_CODE = [[
 	}
 ]]
 
-local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
+local SPRITE_TARGET_PX = 60 -- item icons are displayed at this size
 
 local NES_SCALE = 3 -- each 16×16 floor tile rendered at 48×48 px
 
@@ -351,17 +351,13 @@ local function load_img(path, filter)
 end
 
 local function get_tile(path)
-  if M.tile_cache[path] then
-    return M.tile_cache[path]
-  else
-    local img = load_img(path, "nearest")
-    if img == nil then
-      M.tile_cache[path] = false
-    else
-      M.tile_cache[path] = img
-    end
+  if M.tile_cache[path] ~= nil then
     return M.tile_cache[path]
   end
+
+  local img = load_img(path, "nearest")
+  M.tile_cache[path] = img or false
+  return M.tile_cache[path]
 end
 
 
@@ -541,7 +537,7 @@ function M.load()
 	end
 
 	M.room_canvas = love.graphics.newCanvas(ROOM_VW, ROOM_VH)
-	M.room_canvas:setFilter("linear", "linear")
+	M.room_canvas:setFilter("nearest", "nearest")
 
 	local w, h = love.graphics.getDimensions()
 	M.resize(w, h)
@@ -1050,16 +1046,18 @@ local function draw_minimap(state, mx, my, mw, mh)
 end
 
 local function draw_grid_tiles(tiles, gx, gy, gw, gh)
-  if not tiles.layers then
-    return nil
-  elseif #tiles.layers[1] == 0 or #tiles.layers[1][1] == 0 then
-    return nil
-  else
+  if not tiles.legend or not tiles.layers or not tiles.layers[1]
+      or not tiles.layers[1][1] or #tiles.layers[1][1] == 0 then
+    return
+  end
+
     local cols = #tiles.layers[1][1]
     local rows = #tiles.layers[1]
     local cell = math.min(gw/cols, gh/rows)
     for _, layer in ipairs(tiles.layers) do
+      if #layer ~= rows then return end
       for row = 1, rows do
+        if type(layer[row]) ~= "string" or #layer[row] ~= cols then return end
         for col =1, cols do
           local e = tiles.legend[layer[row]:sub(col, col)]
           local path
@@ -1096,7 +1094,6 @@ local function draw_grid_tiles(tiles, gx, gy, gw, gh)
         end
       end
     end
-  end
 end
 
 -- Draw the main 2D top-down room view. Renders into the room canvas at the
@@ -1205,7 +1202,6 @@ local function draw_room_view(state)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
-	local GLOW_R = 34
 
 	local ITEM_TOP = fy + BANNER_H + FURNITURE_H + M.PAD
 	local ITEM_BOTTOM = fy + fh - 160
@@ -1221,11 +1217,6 @@ local function draw_room_view(state)
 		local cy = ITEM_TOP + item.y * item_zone_h
 		local ix = cx - ITEM_PX / 2
 		local iy = cy - ITEM_PX / 2
-
-		love.graphics.setColor(0.95, 0.78, 0.25, 0.18)
-		love.graphics.circle("fill", cx, cy, GLOW_R + 16)
-		love.graphics.setColor(0.95, 0.78, 0.25, 0.42)
-		love.graphics.circle("fill", cx, cy, GLOW_R)
 
 		local spr = M.sprites[item.sprite]
 		if spr then

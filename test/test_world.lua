@@ -68,6 +68,49 @@ T.test("gating fields propagate from raw to rooms", function()
     T.eq(World.rooms.cellar.requires, "keycard.txt")
 end)
 
+T.test("room block layers are rectangular 6x9 grids", function()
+    for room_id, room in pairs(World.rooms) do
+        T.ok(room.tiles, room_id .. " has block tiles")
+        T.ok(room.tiles.legend, room_id .. " has a tile legend")
+        T.eq(#room.tiles.layers, 3, room_id .. " layer count")
+        for layer_index, layer in ipairs(room.tiles.layers) do
+            T.eq(#layer, 9, room_id .. " layer " .. layer_index .. " row count")
+            for row_index, row in ipairs(layer) do
+                T.eq(#row, 6, room_id .. " layer " .. layer_index
+                    .. " row " .. row_index .. " width")
+            end
+        end
+    end
+end)
+
+T.test("every block references a legend entry and an existing asset", function()
+    local checked_paths = {}
+    for room_id, room in pairs(World.rooms) do
+        local used = {}
+        for _, layer in ipairs(room.tiles.layers) do
+            for _, row in ipairs(layer) do
+                for col = 1, #row do
+                    local symbol = row:sub(col, col)
+                    if symbol ~= "." then used[symbol] = true end
+                end
+            end
+        end
+
+        for symbol in pairs(used) do
+            local entry = room.tiles.legend[symbol]
+            T.ok(entry, room_id .. " missing legend entry for " .. symbol)
+            local path = type(entry) == "table" and entry.path or entry
+            T.ok(type(path) == "string", room_id .. " invalid path for " .. symbol)
+            if not checked_paths[path] then
+                local file = io.open(path, "rb")
+                T.ok(file, "missing room asset: " .. path)
+                file:close()
+                checked_paths[path] = true
+            end
+        end
+    end
+end)
+
 T.suite("get_item")
 
 T.test("returns item by room + filename", function()
