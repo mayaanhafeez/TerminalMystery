@@ -71,11 +71,14 @@ logged into Slack.]],
 		wall = { 0.34, 0.30, 0.22 },
 		floor = { 0.72, 0.66, 0.50 },
 		floor_tint = { 0.88, 0.80, 0.58, 0.20 },
+		-- Placed against the hand-painted full-room art (assets/full_rooms/
+		-- foyer.png): clear of the plant, the round table, the side cabinet,
+		-- the coat rack and the welcome mat, so every icon sits on bare floor.
 		items = {
-			{ ref = "welcome", x = 0.22, y = 0.30 },
-			{ ref = "guest_list", x = 0.55, y = 0.45 },
-			{ ref = "slack_general", x = 0.82, y = 0.62 },
-			{ ref = "personnel_dossier", x = 0.40, y = 0.72 },
+			{ ref = "personnel_dossier", x = 0.18, y = 0.13 },
+			{ ref = "slack_general", x = 0.83, y = 0.19 },
+			{ ref = "guest_list", x = 0.50, y = 0.60 },
+			{ ref = "welcome", x = 0.25, y = 0.80 },
 		},
     tiles = {
       legend = {
@@ -120,12 +123,15 @@ A terminal window shows a list of recently-cloned repos.]],
 		floor = { 0.28, 0.22, 0.14 },
 		floor_tint = { 0.04, 0.16, 0.04, 0.50 },
 		rug = true,
+		-- Placed against the hand-painted full-room art (assets/full_rooms/
+		-- home_office.png): clear of the beanbag, the desk/monitor block and
+		-- the bookcase, so every icon sits on bare floor.
 		items = {
-			{ ref = "draft_email", x = 0.35, y = 0.55 },
-			{ ref = "repo_log", x = 0.70, y = 0.35 },
-			{ ref = "cipher_note", x = 0.55, y = 0.72 },
-			{ ref = "slack_eng_help", x = 0.20, y = 0.30 },
-			{ ref = "slack_trent_dm", x = 0.82, y = 0.68 },
+			{ ref = "repo_log", x = 0.45, y = 0.19 },
+			{ ref = "slack_trent_dm", x = 0.84, y = 0.19 },
+			{ ref = "slack_eng_help", x = 0.10, y = 0.47 },
+			{ ref = "cipher_note", x = 0.88, y = 0.76 },
+			{ ref = "draft_email", x = 0.10, y = 0.86 },
 		},
     tiles = {
       legend = {

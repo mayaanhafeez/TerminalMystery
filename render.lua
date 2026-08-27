@@ -110,7 +110,7 @@ local C = {
 	win_title = { 0.95, 0.85, 0.45 },
 	win_text = { 0.90, 0.95, 0.90 },
 	win_record = { 0.95, 0.50, 0.50 },
-	-- Item glow & label
+	-- Item box & label
 	item_box = { 0.90, 0.70, 0.20 },
 	item_box_border = { 0.70, 0.50, 0.10 },
 	item_label = { 1.00, 0.95, 0.70 },
@@ -336,7 +336,7 @@ local CRT_OVERLAY_SHADER_CODE = [[
 	}
 ]]
 
-local SPRITE_TARGET_PX = 80 -- item icons are displayed at this size
+local SPRITE_TARGET_PX = 60 -- item icons are displayed at this size
 
 local NES_SCALE = 3 -- each 16×16 floor tile rendered at 48×48 px
 
@@ -1202,7 +1202,6 @@ local function draw_room_view(state)
 
 	-- ---- items ----
 	local ITEM_PX = SPRITE_TARGET_PX
-	local GLOW_R = 34
 
 	local ITEM_TOP = fy + BANNER_H + FURNITURE_H + M.PAD
 	local ITEM_BOTTOM = fy + fh - 160
@@ -1218,11 +1217,6 @@ local function draw_room_view(state)
 		local cy = ITEM_TOP + item.y * item_zone_h
 		local ix = cx - ITEM_PX / 2
 		local iy = cy - ITEM_PX / 2
-
-		love.graphics.setColor(0.95, 0.78, 0.25, 0.18)
-		love.graphics.circle("fill", cx, cy, GLOW_R + 16)
-		love.graphics.setColor(0.95, 0.78, 0.25, 0.42)
-		love.graphics.circle("fill", cx, cy, GLOW_R)
 
 		local spr = M.sprites[item.sprite]
 		if spr then
